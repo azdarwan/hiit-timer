@@ -3,8 +3,13 @@
 Minuteur HIIT (High Intensity Interval Training) — PWA installable, **100 % hors ligne, gratuite, sans pub, sans tracker, sans compte**.
 
 - Travail / Repos / Rounds / Repos long / Préparation, entièrement configurables
+- **Exercices nommés + comptage des reps** (pompes, tractions…) saisi à la pause
+- **Historique des séances** (jour, durées, reps par round) + export CSV Excel
+- **Synchro serveur optionnelle** : mini-API PHP à déployer sur un hébergement OVH (cf. `server/README.md`), lisible aussi par un agent (JSON/CSV)
 - Annonces vocales (TTS navigateur, FR/EN) et bips Web Audio (aucun fichier son)
 - Pause / Passer / Terminer, reprise après fermeture de l'appli
+- **Le timer ne se met jamais en pause** quand tu changes d'appli ou discutes avec un agent : le moteur à timestamps rattrape le temps réel ; les annonces manquées ne sont pas rejouées en rafale
+- « Round X » annoncé à la **fin** du repos long, décompte de fin de pause paramétrable (10 s par défaut)
 - Screen Wake Lock pendant la séance, vibration sur les transitions
 - Timer basé sur des timestamps réels : dérive nulle par construction, testée
 
@@ -54,17 +59,29 @@ src/
 ├── types.ts                     # config, réglages, limites de validation
 ├── App.tsx                      # navigation entre écrans, reprise de séance
 ├── modules/
-│   ├── workout/plan.ts          # déroulé de séance : phases, durée totale, formatage
+│   ├── workout/plan.ts          # déroulé de séance : phases, noms d'exercices, durées
+│   ├── workout/exercises.ts     # exercices par défaut, noms normalisés (clé des données)
 │   ├── timer/engine.ts          # moteur de timer basé timestamps (aucune accumulation d'intervalles)
-│   ├── announce/cues.ts         # file d'annonces pré-calculée à partir du déroulé
-│   ├── voice/VoiceService.ts    # interface VoiceService + implémentation TTS (remplaçable par des MP3)
+│   ├── announce/cues.ts         # file d'annonces pré-calculée (round en fin de pause, décompte)
+│   ├── voice/VoiceService.ts    # interface VoiceService + TTS (remplaçable par des MP3)
 │   ├── audio/beeps.ts           # bips Web Audio (aucun fichier son)
 │   ├── wakelock/wakelock.ts     # Screen Wake Lock, repli silencieux
-│   └── storage/                 # réglages, favoris, session en cours (localStorage)
-├── controller/SessionController.ts  # relie moteur, annonces, voix, bips, wake lock, persistance
+│   └── storage/                 # réglages, favoris, séance en cours, historique CSV (localStorage)
+├── controller/SessionController.ts  # relie moteur, annonces, voix, bips, wake lock, reps, persistance
 ├── screens/                     # ConfigScreen, SessionScreen, DoneScreen
 └── test/                         # tests vitest
+server/                           # mini-API PHP (OVH) : stockage des séances, export JSON/CSV
 ```
+
+### Saisie des reps et continuité des données
+
+Chaque exercice a un **nom** (modifiable dans l'écran config) et une option
+« Compter les reps ». À la pause qui suit un exercice compté, un stepper
+apparaît ; la saisie disparaît à la fin de la pause sans jamais bloquer le
+timer. Les reps sont stockées **par round** avec le **jour** de la séance
+(l'heure est inutile). Les données sont rattachées au **nom normalisé** de
+l'exercice, pas à sa position : si le cycle change (ordre, nombre
+d'exercices), l'historique de chaque exercice reste comparable.
 
 ### Précision du timer
 
@@ -83,8 +100,10 @@ npm test
 Couvre notamment :
 
 - durée totale par défaut = **2020 s = 33:40**, somme des phases identique ;
-- toutes les annonces du tableau au bon instant sur la séance par défaut complète (horloge virtuelle déterministe) ;
-- pas de décompte dans une phase < 4 s ; « Moitié » dès 12 s de travail ;
+- noms des exercices portés par les phases (travail, repos, repos long) et compatibilité avec les anciennes configs sans définitions ;
+- toutes les annonces du tableau au bon instant sur la séance par défaut complète (horloge virtuelle déterministe), « Round X » à la fin du repos long, décompte étendu (et sa coupure sur un repos long trop court) ;
+- historique : stockage par jour (sans heure), CSV Excel fr avec ligne résumé + lignes par exercice/round ;
+- session en cours : reps persistées à la pause, restituées à la reprise, annonces manquées en arrière-plan sautées sans rafale ;
 - pause puis reprise sans dérive (pause réelle chronométrée) ;
 - « Passer » à l'exercice 7/15 → repos suivant direct, annonces de la portion sautée supprimées ;
 - persistance favoris/session en localStorage ;
@@ -92,7 +111,7 @@ Couvre notamment :
 
 ## Réglages
 
-Langue de la voix (FR/EN), voix on/off, volume des bips, garder l'écran allumé (par défaut, repli silencieux si non supporté), vibration sur les transitions. Réglages, configuration et favoris sont mémorisés entre deux ouvertures (localStorage).
+Langue de la voix (FR/EN), choix de la voix (les meilleures voix sont choisies automatiquement : Google, Natural/Premium, voix locales de qualité ; sélection manuelle possible), voix on/off, volume des bips, décompte de fin de pause (10 s par défaut, 0 = coupé), garder l'écran allumé (par défaut, repli silencieux si non supporté), vibration sur les transitions, synchro serveur (URL + jeton). Réglages, configuration et favoris sont mémorisés entre deux ouvertures (localStorage).
 
 ## Validation des champs
 

@@ -34,7 +34,7 @@ describe('Historique des séances', () => {
     });
     addSession({ realMs: 1500000, totalMs: 2020000, config: DEFAULT_CONFIG, day: '2026-11-20', reps: [] });
     const csv = toCSV(listSessions());
-    const lines = csv.split('\\r\\n').filter(Boolean);
+    const lines = csv.split('\r\n').filter(Boolean);
     expect(lines[0]).toBe('date;exercice;round;reps;duree_min');
     // ligne résumé de la 1re séance (permet de compter séances et minutes/semaine)
     expect(lines[1]).toBe('2026-11-19;Séance;0;;33.7');

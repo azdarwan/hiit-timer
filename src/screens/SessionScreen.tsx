@@ -40,22 +40,16 @@ export default function SessionScreen(props: Props) {
   const remainingSec = Math.ceil(snapshot.remainingMs / 1000);
   const phaseClass = `phase-${snapshot.phase.type}`;
 
-  // Saisie des reps à la pause (backlog n°1) : seulement pendant le repos qui
-  // suit un exercice marqué "reps". Le repos long couvre le dernier exercice
-  // du round. La saisie disparaît à la fin de la pause, sans bloquer le timer.
+  // Saisie des reps à la fin de chaque round (spec du 21/11/2026) : pendant
+  // chaque pause longue, une fiche liste tous les exercices "reps" du round
+  // qui vient de finir. Elle reste affichée pendant toute la pause, ne
+  // bloque pas le timer, et disparaît au round suivant avec ce qui a été
+  // rempli. Les éventuelles manquantes du dernier round (pas de pause longue
+  // après lui) se complètent sur l'écran de fin.
   const defs = exercisesFor(props.config);
   const p = snapshot.phase;
-  let repTarget: { name: string; round: number } | null = null;
-  if (!paused && (p.type === 'rest' || p.type === 'longRest')) {
-    const index = p.type === 'rest' ? p.exercise : p.exercisesInRound;
-    const def = defs[index - 1];
-    if (def?.countReps) {
-      // Le repos long est rattaché au round qui ARRIVE (plan.ts) :
-      // l'exercice saisissable est le dernier du round précédent.
-      repTarget = { name: def.name, round: p.type === 'rest' ? p.round : p.round - 1 };
-    }
-  }
-  const repValue = repTarget ? props.reps[`${repTarget.round}:${normalizeName(repTarget.name)}`] ?? 0 : 0;
+  const finishedRound = !paused && p.type === 'longRest' ? p.round - 1 : 0;
+  const repDefs = finishedRound > 0 ? defs.filter((d) => d.countReps) : [];
 
   return (
     <div className={`screen session ${phaseClass}`}>
@@ -73,28 +67,38 @@ export default function SessionScreen(props: Props) {
         <div className="progress-fill" style={{ width: `${snapshot.phaseProgress * 100}%` }} />
       </div>
 
-      {repTarget && (
+      {finishedRound > 0 && repDefs.length > 0 && (
         <div className="reps-input" data-testid="reps-input">
-          <div className="reps-label">
-            {repTarget.name} <span className="reps-round">(R{repTarget.round})</span>
-          </div>
-          <div className="reps-row">
-            <button
-              className="reps-btn"
-              aria-label={`Moins de ${repTarget.name}`}
-              onClick={() => props.onSetReps(repTarget!.name, repTarget!.round, Math.max(0, repValue - 1))}
-            >
-              −
-            </button>
-            <div className="reps-value">{repValue || ''}</div>
-            <button
-              className="reps-btn"
-              aria-label={`Plus de ${repTarget.name}`}
-              onClick={() => props.onSetReps(repTarget!.name, repTarget!.round, repValue + 1)}
-            >
-              +
-            </button>
-          </div>
+          <div className="reps-title">Reps du round {finishedRound}</div>
+          <ul className="reps-list">
+            {repDefs.map((def) => {
+              const value = props.reps[`${finishedRound}:${normalizeName(def.name)}`] ?? 0;
+              return (
+                <li className="reps-item" key={def.name}>
+                  <span className="reps-label">
+                    {def.name} <span className="reps-round">(R{finishedRound})</span>
+                  </span>
+                  <div className="reps-row">
+                    <button
+                      className="reps-btn"
+                      aria-label={`Moins de ${def.name}`}
+                      onClick={() => props.onSetReps(def.name, finishedRound, Math.max(0, value - 1))}
+                    >
+                      −
+                    </button>
+                    <div className="reps-value">{value || ''}</div>
+                    <button
+                      className="reps-btn"
+                      aria-label={`Plus de ${def.name}`}
+                      onClick={() => props.onSetReps(def.name, finishedRound, value + 1)}
+                    >
+                      +
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
 

@@ -4,7 +4,7 @@ import type { Settings, WorkoutConfig } from './types';
 import { loadConfig, loadSettings, saveConfig, saveSettings } from './modules/storage/settings';
 import { loadFavorites, saveFavorites, type Favorite } from './modules/storage/favorites';
 import { loadSession, clearSession, type SavedSession } from './modules/storage/session';
-import { addSession, syncSession, type RecordedSession, type RepRecord, type SyncResult } from './modules/storage/history';
+import { addSession, syncSession, updateSessionReps, type RecordedSession, type RepRecord, type SyncResult } from './modules/storage/history';
 import { buildPhases } from './modules/workout/plan';
 import { normalizeName } from './modules/workout/exercises';
 import { TtsVoiceService } from './modules/voice/VoiceService';
@@ -191,6 +191,26 @@ export default function App() {
     setSyncResult(res);
   }, [doneSession, settings.syncUrl, settings.syncToken]);
 
+  /**
+   * Retouche des reps du dernier round sur l'écran de fin (spec du 21/11) :
+   * met à jour la séance en mémoire ET dans l'historique local. Une valeur à 0
+   * retire la ligne (non saisi ≠ zéro). La synchro précédente devient obsolète.
+   */
+  const setDoneReps = useCallback((name: string, round: number, value: number) => {
+    setDoneSession((prev) => {
+      if (!prev) return prev;
+      const v = Math.max(0, Math.min(999, Math.round(value)));
+      const norm = normalizeName(name);
+      const others = prev.reps.filter((r) => !(r.round === round && normalizeName(r.exercise) === norm));
+      const reps = v > 0
+        ? [...others, { exercise: name, round, reps: v }].sort((a, b) => a.round - b.round || a.exercise.localeCompare(b.exercise))
+        : others;
+      updateSessionReps(prev.id, reps);
+      return { ...prev, reps };
+    });
+    setSyncResult(null);
+  }, []);
+
   if (screen === 'session' && snapshot) {
     return (
       <SessionScreen
@@ -221,6 +241,7 @@ export default function App() {
         syncResult={syncResult}
         syncConfigured={Boolean(settings.syncUrl)}
         onRetrySync={retrySync}
+        onSetReps={setDoneReps}
         onBack={exitSession}
       />
     );

@@ -52,6 +52,12 @@ export default function DoneScreen(props: Props) {
           <span className="done-stat-label">Séance prévue</span>
           <span className="done-stat-value">{formatDuration(props.totalMs / 1000)}</span>
         </div>
+        {session && session.kcal !== undefined && (
+          <div className="done-stat">
+            <span className="done-stat-label">Calories (estimation)</span>
+            <span className="done-stat-value">{session.kcal} kcal</span>
+          </div>
+        )}
       </div>
 
       {defs.length > 0 && rounds > 0 && (

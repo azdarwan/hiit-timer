@@ -36,6 +36,8 @@ export interface Settings {
   countdownSec: number;
   /** Prononcer le nom de l'exercice au début de chaque travail ("Pompes. Go !") */
   sayExerciseNames: boolean;
+  /** Poids de l'utilisateur en kg, pour l'estimation calorique (méthode MET) */
+  weightKg: number;
   /** URL du serveur de stockage (ex. https://domaine.tld/hiit/api.php). Vide = pas de synchro. */
   syncUrl: string;
   /** Jeton d'authentification du serveur de stockage */
@@ -61,6 +63,7 @@ export const DEFAULT_SETTINGS: Settings = {
   vibrate: true,
   countdownSec: 10,
   sayExerciseNames: false,
+  weightKg: 75,
   syncUrl: '',
   syncToken: '',
 };
@@ -76,3 +79,6 @@ export const CONFIG_LIMITS = {
 
 /** Bornes du décompte de fin de repos long, en secondes. */
 export const COUNTDOWN_LIMITS = { min: 0, max: 30, step: 5 } as const;
+
+/** Bornes du poids utilisateur (kg) pour l'estimation calorique. */
+export const WEIGHT_LIMITS = { min: 30, max: 300, step: 1 } as const;

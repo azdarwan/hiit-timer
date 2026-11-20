@@ -6,6 +6,7 @@ import { loadFavorites, saveFavorites, type Favorite } from './modules/storage/f
 import { loadSession, clearSession, type SavedSession } from './modules/storage/session';
 import { addSession, syncSession, updateSessionReps, type RecordedSession, type RepRecord, type SyncResult } from './modules/storage/history';
 import { buildPhases } from './modules/workout/plan';
+import { estimateCalories } from './modules/workout/calories';
 import { normalizeName } from './modules/workout/exercises';
 import { TtsVoiceService } from './modules/voice/VoiceService';
 import { BeepService } from './modules/audio/beeps';
@@ -133,14 +134,21 @@ export default function App() {
     (realMs: number, totalMs: number, repRecords: RepRecord[]) => {
       const controllerCfg = controllerRef.current?.workoutConfig;
       controllerRef.current = null;
-      const recorded = addSession({ realMs, totalMs, config: controllerCfg ?? config, reps: repRecords });
+      const cfg = controllerCfg ?? config;
+      const recorded = addSession({
+        realMs,
+        totalMs,
+        config: cfg,
+        reps: repRecords,
+        kcal: estimateCalories(cfg, settings.weightKg),
+      });
       setDoneSession(recorded);
       setSyncResult(null);
       if (settings.syncUrl) {
         void syncSession(settings.syncUrl, settings.syncToken, recorded).then(setSyncResult);
       }
     },
-    [config, settings.syncUrl, settings.syncToken],
+    [config, settings.syncUrl, settings.syncToken, settings.weightKg],
   );
 
   const startSession = useCallback(() => {

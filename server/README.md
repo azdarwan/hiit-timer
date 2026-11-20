@@ -45,7 +45,8 @@ toujours dans l'historique local.
   `https://ton-domaine.tld/hiit/api.php?token=JETON&format=csv`
 - Le CSV contient une ligne résumé « Séance » par séance (permet de
   compter les séances et les minutes/semaine même sans reps) puis une
-  ligne par exercise/round : `date;exercice;round;reps;duree_min`.
+  ligne par exercise/round : `date;exercice;round;reps;duree_min;kcal`
+  (la colonne `kcal`, estimation MET, est vide pour les séances anciennes).
 
 ## Tester en ligne de commande
 

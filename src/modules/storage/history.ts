@@ -21,6 +21,8 @@ export interface RecordedSession {
   totalMs: number;
   config: WorkoutConfig;
   reps: RepRecord[];
+  /** Calories estimées de la séance (kcal, méthode MET). Absent = non calculé (anciennes séances). */
+  kcal?: number;
 }
 
 /** Jour local au format YYYY-MM-DD. */
@@ -39,6 +41,7 @@ export function addSession(session: Omit<RecordedSession, 'id' | 'day'> & { day?
     totalMs: session.totalMs,
     config: session.config,
     reps: session.reps,
+    ...(session.kcal !== undefined ? { kcal: session.kcal } : {}),
   };
   const all = listSessions();
   all.push(full);
@@ -100,13 +103,13 @@ function csvEscape(value: string | number): string {
  * même sans aucune saisie de reps.
  */
 export function toCSV(sessions: RecordedSession[]): string {
-  const rows: (string | number)[][] = [['date', 'exercice', 'round', 'reps', 'duree_min']];
+  const rows: (string | number)[][] = [['date', 'exercice', 'round', 'reps', 'duree_min', 'kcal']];
   for (const s of [...sessions].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0))) {
     // Minutes avec 1 décimale au besoin, sans '.0' superflu (25, pas 25.0)
     const minutes = String(Math.round((s.realMs / 60000) * 10) / 10);
-    rows.push([s.day, 'Séance', 0, '', minutes]);
+    rows.push([s.day, 'Séance', 0, '', minutes, s.kcal ?? '']);
     for (const r of [...s.reps].sort((a, b) => a.exercise.localeCompare(b.exercise) || a.round - b.round)) {
-      rows.push([s.day, r.exercise, r.round, r.reps, '']);
+      rows.push([s.day, r.exercise, r.round, r.reps, '', '']);
     }
   }
   return rows.map((r) => r.map(csvEscape).join(';')).join('\r\n') + '\r\n';
@@ -154,6 +157,7 @@ export async function syncSession(
           prepare: session.config.prepare,
         },
         reps: session.reps,
+        ...(session.kcal !== undefined ? { kcal: session.kcal } : {}),
       }),
     });
     if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };

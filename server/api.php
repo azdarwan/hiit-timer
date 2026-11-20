@@ -104,6 +104,10 @@ if ($method === 'POST') {
         'config' => $config,
         'reps' => $reps,
     ];
+    // Calories estimées (kcal, méthode MET) : présentes pour les séances récentes.
+    if (isset($json['kcal']) && is_numeric($json['kcal'])) {
+        $record['kcal'] = (int)$json['kcal'];
+    }
 
     if (!ensure_data_dir()) fail(500, 'storage-unwritable');
 
@@ -126,14 +130,15 @@ if ($method === 'GET') {
         header('Content-Type: text/csv; charset=utf-8');
         // BOM UTF-8 pour que Excel fr reconnaisse l'encodage.
         echo "\xEF\xBB\xBF";
-        echo "date;exercice;round;reps;duree_min\r\n";
+        echo "date;exercice;round;reps;duree_min;kcal\r\n";
         foreach ($sessions as $s) {
             $day = (string)($s['day'] ?? '');
             $minutes = round(((int)($s['realMs'] ?? 0)) / 60000, 1);
-            printf("%s;Séance;0;;%s\r\n", $day, $minutes);
+            $kcal = isset($s['kcal']) ? (string)(int)$s['kcal'] : '';
+            printf("%s;Séance;0;;%s;%s\r\n", $day, $minutes, $kcal);
             foreach (($s['reps'] ?? []) as $r) {
                 printf(
-                    "%s;%s;%d;%d;\r\n",
+                    "%s;%s;%d;%d;;\r\n",
                     $day,
                     str_replace([';', "\r", "\n"], ' ', (string)($r['exercise'] ?? '')),
                     (int)($r['round'] ?? 0),

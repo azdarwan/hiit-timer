@@ -13,10 +13,13 @@ describe('Historique des séances', () => {
     addSession({
       realMs: 1500000, totalMs: 2020000, config: DEFAULT_CONFIG, day: '2026-11-20',
       reps: [{ exercise: 'Pompes', round: 1, reps: 14 }],
+      kcal: 260,
     });
     const all = listSessions();
     expect(all.map((s) => s.day)).toEqual(['2026-11-19', '2026-11-20']);
     expect(all[1].reps).toEqual([{ exercise: 'Pompes', round: 1, reps: 14 }]);
+    expect(all[1].kcal).toBe(260);
+    expect(all[0].kcal).toBeUndefined();
     // pas d'heure stockée : le jour est jour-jour
     expect(all[0]).not.toHaveProperty('hour');
     clearHistory();
@@ -32,17 +35,17 @@ describe('Historique des séances', () => {
         { exercise: 'Tractions', round: 1, reps: 6 },
       ],
     });
-    addSession({ realMs: 1500000, totalMs: 2020000, config: DEFAULT_CONFIG, day: '2026-11-20', reps: [] });
+    addSession({ realMs: 1500000, totalMs: 2020000, config: DEFAULT_CONFIG, day: '2026-11-20', reps: [], kcal: 255 });
     const csv = toCSV(listSessions());
     const lines = csv.split('\r\n').filter(Boolean);
-    expect(lines[0]).toBe('date;exercice;round;reps;duree_min');
+    expect(lines[0]).toBe('date;exercice;round;reps;duree_min;kcal');
     // ligne résumé de la 1re séance (permet de compter séances et minutes/semaine)
-    expect(lines[1]).toBe('2026-11-19;Séance;0;;33.7');
-    expect(lines).toContain('2026-11-19;Pompes;1;14;');
-    expect(lines).toContain('2026-11-19;Pompes;2;12;');
-    expect(lines).toContain('2026-11-19;Tractions;1;6;');
-    // séance sans reps : juste sa ligne résumé (25 min)
-    expect(lines[5]).toBe('2026-11-20;Séance;0;;25');
+    expect(lines[1]).toBe('2026-11-19;Séance;0;;33.7;');
+    expect(lines).toContain('2026-11-19;Pompes;1;14;;');
+    expect(lines).toContain('2026-11-19;Pompes;2;12;;');
+    expect(lines).toContain('2026-11-19;Tractions;1;6;;');
+    // séance sans reps : juste sa ligne résumé (25 min), avec ses calories
+    expect(lines[5]).toBe('2026-11-20;Séance;0;;25;255');
   });
 
   it('met à jour les reps d\'une séance enregistrée (écran de fin, récap éditable)', () => {

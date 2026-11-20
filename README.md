@@ -4,7 +4,7 @@ Minuteur HIIT (High Intensity Interval Training) — PWA installable, **100 % ho
 
 - Travail / Repos / Rounds / Repos long / Préparation, entièrement configurables
 - **Exercices nommés + comptage des reps** (pompes, tractions…) saisi à la fin de chaque round, avec **récapitulatif complet corrigible avant validation** sur l'écran de fin
-- **Historique des séances** (jour, durées, reps par round) + export CSV Excel
+- **Historique des séances** (jour, durées, reps par round, calories estimées) + export CSV Excel
 - **Synchro serveur optionnelle** : mini-API PHP à déployer sur un hébergement OVH (cf. `server/README.md`), lisible aussi par un agent (JSON/CSV)
 - Annonces vocales (TTS navigateur, FR/EN) et bips Web Audio (aucun fichier son)
 - Pause / Passer / Terminer, reprise après fermeture de l'appli
@@ -105,6 +105,7 @@ npm test
 Couvre notamment :
 
 - durée totale par défaut = **2020 s = 33:40**, somme des phases identique ;
+- calories estimées (méthode MET) : 255 kcal sur la séance par défaut à 75 kg, proportionnelles au poids, calculées phase par phase sur le déroulé exact ;
 - noms des exercices portés par les phases (travail, repos, repos long) et compatibilité avec les anciennes configs sans définitions ;
 - toutes les annonces du tableau au bon instant sur la séance par défaut complète (horloge virtuelle déterministe), « Round X » à la fin du repos long, décompte en jalons (D=15 → 15, 10, 5, 3-2-1 et sa coupure sur un repos long trop court) ;
 - historique : stockage par jour (sans heure), CSV Excel fr avec ligne résumé + lignes par exercice/round ;
@@ -116,7 +117,7 @@ Couvre notamment :
 
 ## Réglages
 
-Langue de la voix (FR/EN), choix de la voix (les meilleures voix sont choisies automatiquement : Google, Natural/Premium, voix locales de qualité ; sélection manuelle possible), voix on/off, nom des exercices à voix haute (off par défaut), volume des bips, décompte de fin de pause en jalons (10 s par défaut, 0 = coupé), garder l'écran allumé (par défaut, repli silencieux si non supporté), vibration sur les transitions, synchro serveur (URL + jeton). Réglages, configuration et favoris sont mémorisés entre deux ouvertures (localStorage).
+Langue de la voix (FR/EN), choix de la voix (les meilleures voix sont choisies automatiquement : Google, Natural/Premium, voix locales de qualité ; sélection manuelle possible), voix on/off, nom des exercices à voix haute (off par défaut), volume des bips, décompte de fin de pause en jalons (10 s par défaut, 0 = coupé), poids en kg (estimation des calories par la méthode MET, ±25-40 % sans fréquence cardiaque), garder l'écran allumé (par défaut, repli silencieux si non supporté), vibration sur les transitions, synchro serveur (URL + jeton). Réglages, configuration et favoris sont mémorisés entre deux ouvertures (localStorage).
 
 ## Validation des champs
 

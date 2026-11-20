@@ -1,5 +1,5 @@
 import type { Settings, WorkoutConfig } from '../types';
-import { CONFIG_LIMITS, COUNTDOWN_LIMITS } from '../types';
+import { CONFIG_LIMITS, COUNTDOWN_LIMITS, WEIGHT_LIMITS } from '../types';
 import { formatDuration, totalDuration } from '../modules/workout/plan';
 import { exercisesFor } from '../modules/workout/exercises';
 import type { Favorite } from '../modules/storage/favorites';
@@ -54,6 +54,15 @@ export default function ConfigScreen(props: Props) {
     onSettingsChange({
       ...settings,
       countdownSec: Math.min(COUNTDOWN_LIMITS.max, Math.max(COUNTDOWN_LIMITS.min, value)),
+    });
+  };
+
+  /** Poids utilisateur (kg) : unique donnée nécessaire aux calories (MET). */
+  const setWeight = (value: number) => {
+    if (!Number.isFinite(value)) value = WEIGHT_LIMITS.min;
+    onSettingsChange({
+      ...settings,
+      weightKg: Math.min(WEIGHT_LIMITS.max, Math.max(WEIGHT_LIMITS.min, value)),
     });
   };
 
@@ -281,6 +290,30 @@ export default function ConfigScreen(props: Props) {
         <p className="section-hint">
           Fin de pause longue en jalons : le nombre réglé, puis 10 s et 5 s
           (si inférieurs), puis 3, 2, 1.
+        </p>
+        <div className="setting-row">
+          <span>Poids (kg)</span>
+          <div className="stepper-row setting-stepper">
+            <button className="step-btn" onClick={() => setWeight(settings.weightKg - WEIGHT_LIMITS.step)} aria-label="Moins de poids">
+              −
+            </button>
+            <input
+              className="step-input"
+              type="number"
+              inputMode="numeric"
+              min={WEIGHT_LIMITS.min}
+              max={WEIGHT_LIMITS.max}
+              value={settings.weightKg}
+              onChange={(e) => setWeight(Number(e.target.value))}
+            />
+            <button className="step-btn" onClick={() => setWeight(settings.weightKg + WEIGHT_LIMITS.step)} aria-label="Plus de poids">
+              +
+            </button>
+          </div>
+        </div>
+        <p className="section-hint">
+          Sert uniquement à l'estimation des calories en fin de séance (méthode
+          MET, précision de l'ordre de ±25-40 % sans fréquence cardiaque).
         </p>
         <label className="setting-row">
           <span>Garder l'écran allumé</span>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildPhases, formatDuration, totalDuration } from '../modules/workout/plan';
+import { exercisesFor } from '../modules/workout/exercises';
 import { DEFAULT_CONFIG } from '../types';
 
 describe('Déroulé de séance', () => {
@@ -52,5 +53,31 @@ describe('Déroulé de séance', () => {
     expect(DEFAULT_CONFIG.exercises).toBeGreaterThanOrEqual(1);
     expect(DEFAULT_CONFIG.rounds).toBeGreaterThanOrEqual(1);
     expect(DEFAULT_CONFIG.prepare).toBeGreaterThanOrEqual(0);
+  });
+
+  it('porte le nom des exercices et le comptage des reps', () => {
+    const phases = buildPhases(DEFAULT_CONFIG);
+    const work3 = phases.find((p) => p.type === 'work' && p.round === 1 && p.exercise === 3)!;
+    expect(work3.exerciseName).toBe('Pompes');
+    expect(work3.countReps).toBe(true);
+    const rest3 = phases.find((p) => p.type === 'rest' && p.round === 1 && p.exercise === 3)!;
+    // le repos qui suit un exercice "reps" porte aussi son nom
+    expect(rest3.exerciseName).toBe('Pompes');
+    expect(rest3.countReps).toBe(true);
+    const work1 = phases.find((p) => p.type === 'work' && p.round === 1 && p.exercise === 1)!;
+    expect(work1.exerciseName).toBe('Jumping jacks');
+    expect(work1.countReps).toBe(false);
+    // comptage par défaut : pompes, pompes avec rotation, tractions
+    expect(exercisesFor(DEFAULT_CONFIG).filter((d) => d.countReps).map((d) => d.name))
+      .toEqual(['Pompes', 'Pompes avec rotation', 'Tractions']);
+  });
+
+  it('garde la compatibilité : ancienne config sans définitions, ou plus d\'exercices', () => {
+    const legacy = buildPhases({ work: 30, rest: 10, exercises: 2, rounds: 1, longRest: 0, prepare: 0 });
+    expect(legacy[0].exerciseName).toBe('Jumping jacks');
+    expect(legacy[2].exerciseName).toBe('Chaise');
+    const big = exercisesFor({ work: 30, rest: 10, exercises: 17, rounds: 1, longRest: 0, prepare: 0 });
+    expect(big[16].name).toBe('Exercice 17');
+    expect(big[16].countReps).toBe(false);
   });
 });

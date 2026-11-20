@@ -14,20 +14,67 @@ export interface VoiceService {
   cancel(): void;
 }
 
+/** Voix proposée dans les réglages. */
+export interface VoiceOption {
+  name: string;
+  lang: string;
+}
+
+type VoicesListener = () => void;
+
+/**
+ * Score de qualité d'une voix pour une langue cible. Le TTS varie beaucoup
+ * selon le navigateur/OS : on privilégie les voix "Google", "Natural",
+ * "Premium"/"Enhanced" et les voix locales de qualité (ex. Amélie sur iOS)
+ * plutôt que la première venue (souvent la mauvaise voix par défaut, cf.
+ * irritant voix du backlog).
+ */
+function scoreVoice(v: SpeechSynthesisVoice, lang: Lang): number {
+  const target = lang === 'fr' ? 'fr' : 'en';
+  const vlang = v.lang.toLowerCase().replace('_', '-');
+  let s = 0;
+  if (vlang.startsWith(target)) s += 10;
+  if (lang === 'fr' && vlang.startsWith('fr-fr')) s += 4;
+  if (lang === 'en' && vlang.startsWith('en-us')) s += 2;
+  const n = v.name.toLowerCase();
+  if (n.includes('google')) s += 8;
+  if (n.includes('natural') || n.includes('premium') || n.includes('enhanced') || n.includes('siri')) s += 6;
+  if (lang === 'fr' && (n.includes('amélie') || n.includes('amelie') || n.includes('audrey') || n.includes('thomas'))) s += 5;
+  if (v.localService) s += 1;
+  return s;
+}
+
 export class TtsVoiceService implements VoiceService {
   private enabled = true;
   private lang: Lang = 'fr';
+  /** Voix choisie manuellement dans les réglages (null = automatique). */
+  private voiceName: string | null = null;
   private voice: SpeechSynthesisVoice | null = null;
+  private listeners = new Set<VoicesListener>();
+
+  constructor() {
+    // Écoute posée dès la construction : les voix arrivent de façon
+    // asynchrone, y compris avant le premier clic sur Start.
+    try {
+      if (typeof speechSynthesis !== 'undefined') {
+        speechSynthesis.addEventListener('voiceschanged', () => {
+          this.pickVoice();
+          this.listeners.forEach((l) => l());
+        });
+      }
+    } catch {
+      // silencieux
+    }
+  }
 
   init(): void {
     try {
       if (typeof speechSynthesis === 'undefined') return;
       speechSynthesis.getVoices();
-      // Utérance vide : débloche la synthèse vocale sur iOS au premier geste.
+      // Utérence vide : débloque la synthèse vocale sur iOS au premier geste.
       const u = new SpeechSynthesisUtterance('');
       u.volume = 0;
       speechSynthesis.speak(u);
-      speechSynthesis.addEventListener('voiceschanged', () => this.pickVoice());
       this.pickVoice();
     } catch {
       // silencieux : la voix est optionnelle
@@ -40,9 +87,38 @@ export class TtsVoiceService implements VoiceService {
     this.pickVoice();
   }
 
+  setVoiceName(name: string | null): void {
+    this.voiceName = name && name.trim() ? name : null;
+    this.voice = null;
+    this.pickVoice();
+  }
+
   setEnabled(enabled: boolean): void {
     this.enabled = enabled;
     if (!enabled) this.cancel();
+  }
+
+  /** Liste des voix disponibles pour la langue courante (réglages). */
+  listVoices(lang: Lang = this.lang): VoiceOption[] {
+    try {
+      if (typeof speechSynthesis === 'undefined') return [];
+      const target = lang === 'fr' ? 'fr' : 'en';
+      return speechSynthesis
+        .getVoices()
+        .filter((v) => v.lang.toLowerCase().startsWith(target))
+        .map((v) => ({ name: v.name, lang: v.lang }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    } catch {
+      return [];
+    }
+  }
+
+  onVoicesChanged(listener: VoicesListener): void {
+    this.listeners.add(listener);
+  }
+
+  offVoicesChanged(listener: VoicesListener): void {
+    this.listeners.delete(listener);
   }
 
   speak(text: string): void {
@@ -68,10 +144,22 @@ export class TtsVoiceService implements VoiceService {
 
   private pickVoice(): void {
     try {
+      if (typeof speechSynthesis === 'undefined') {
+        this.voice = null;
+        return;
+      }
       const voices = speechSynthesis.getVoices();
-      const target = this.lang === 'fr' ? 'fr' : 'en';
-      this.voice =
-        voices.find((v) => v.lang.toLowerCase().startsWith(target)) ?? null;
+      if (voices.length === 0) return;
+      if (this.voiceName) {
+        const exact = voices.find((v) => v.name === this.voiceName);
+        if (exact) {
+          this.voice = exact;
+          return;
+        }
+      }
+      const inLang = voices.filter((v) => scoreVoice(v, this.lang) >= 10);
+      const pool = inLang.length > 0 ? inLang : voices;
+      this.voice = pool.reduce((best, v) => (scoreVoice(v, this.lang) > scoreVoice(best, this.lang) ? v : best));
     } catch {
       this.voice = null;
     }

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { formatDuration } from '../modules/workout/plan';
 import { exercisesFor, normalizeName } from '../modules/workout/exercises';
 import { toCSV, downloadCSV, type RecordedSession, type SyncResult } from '../modules/storage/history';
@@ -9,38 +10,29 @@ interface Props {
   syncResult: SyncResult | null;
   syncConfigured: boolean;
   onRetrySync: () => void;
-  /** Modifie les reps de la séance enregistrée (section dernier round). */
+  /** Modifie les reps de la séance enregistrée (récap éditable, tous rounds). */
   onSetReps: (name: string, round: number, value: number) => void;
   onBack: () => void;
 }
 
 export default function DoneScreen(props: Props) {
   const { session } = props;
+  // Cellule sélectionnée du récap (steppers −/+ inline, spec 21/11/2026).
+  const [editCell, setEditCell] = useState<{ name: string; round: number } | null>(null);
 
-  // Résumé : total par exercice + détail par round.
-  const byExercise = new Map<string, { total: number; perRound: Map<number, number> }>();
+  // Récap complet : lignes = exercices "reps", colonnes = R1..Rn, + total.
+  const rounds = session?.config.rounds ?? 0;
+  const defs = session ? exercisesFor(session.config).filter((d) => d.countReps) : [];
+  const values = new Map<string, number>();
   for (const r of session?.reps ?? []) {
-    let e = byExercise.get(r.exercise);
-    if (!e) {
-      e = { total: 0, perRound: new Map() };
-      byExercise.set(r.exercise, e);
-    }
-    e.total += r.reps;
-    e.perRound.set(r.round, r.reps);
+    values.set(`${r.round}:${normalizeName(r.exercise)}`, r.reps);
   }
-  const exercises = [...byExercise.entries()].sort((a, b) => b[1].total - a[1].total);
-
-  // Dernier round : pas de pause longue après lui, ses reps se complètent
-  // ici (steppers pré-remplis, 0 = non saisi). Spec du 21/11/2026.
-  const lastRound = session?.config.rounds ?? 0;
-  const editDefs =
-    lastRound > 0 && session ? exercisesFor(session.config).filter((d) => d.countReps) : [];
-  const editValues = new Map(editDefs.map((d) => [d.name, 0]));
-  for (const r of session?.reps ?? []) {
-    if (r.round !== lastRound) continue;
-    const def = editDefs.find((d) => normalizeName(d.name) === normalizeName(r.exercise));
-    if (def) editValues.set(def.name, r.reps);
-  }
+  const valueOf = (name: string, round: number) => values.get(`${round}:${normalizeName(name)}`) ?? 0;
+  const totalOf = (name: string) => {
+    let total = 0;
+    for (let rd = 1; rd <= rounds; rd++) total += valueOf(name, rd);
+    return total;
+  };
 
   const exportSession = () => {
     if (!session) return;
@@ -62,59 +54,67 @@ export default function DoneScreen(props: Props) {
         </div>
       </div>
 
-      {exercises.length > 0 && (
-        <section className="section done-reps">
-          <h2>Reps réalisées</h2>
-          <ul className="done-rep-list">
-            {exercises.map(([name, e]) => (
-              <li className="done-rep-row" key={name}>
-                <span className="done-rep-name">{name}</span>
-                <span className="done-rep-detail">
-                  {[...e.perRound.entries()]
-                    .sort((a, b) => a[0] - b[0])
-                    .map(([round, reps]) => `R${round} : ${reps}`)
-                    .join(' · ')}
-                </span>
-                <span className="done-rep-total">{e.total}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {editDefs.length > 0 && (
-        <section className="section done-reps" data-testid="reps-last-round">
-          <h2>Reps du dernier round</h2>
+      {defs.length > 0 && rounds > 0 && (
+        <section className="section done-reps" data-testid="reps-recap">
+          <h2>Reps de la séance</h2>
           <p className="section-hint">
-            Pas de pause longue après le dernier round : complète ou corrige ici avant l'export.
+            Tout ce qui a été saisi pendant les pauses, corrigé au besoin avant de valider. « – » = non saisi.
           </p>
-          <ul className="done-rep-list">
-            {editDefs.map((d) => {
-              const value = editValues.get(d.name) ?? 0;
-              return (
-                <li className="done-rep-row" key={d.name}>
-                  <span className="done-rep-name">{d.name}</span>
-                  <div className="reps-row">
-                    <button
-                      className="reps-btn"
-                      aria-label={`Moins de ${d.name}`}
-                      onClick={() => props.onSetReps(d.name, lastRound, Math.max(0, value - 1))}
-                    >
-                      −
-                    </button>
-                    <div className="reps-value">{value || ''}</div>
-                    <button
-                      className="reps-btn"
-                      aria-label={`Plus de ${d.name}`}
-                      onClick={() => props.onSetReps(d.name, lastRound, value + 1)}
-                    >
-                      +
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          <table className="recap-table">
+            <thead>
+              <tr>
+                <th aria-label="Exercice"></th>
+                {Array.from({ length: rounds }, (_, i) => (
+                  <th key={i}>R{i + 1}</th>
+                ))}
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {defs.map((d) => (
+                <tr key={d.name}>
+                  <th className="recap-name">{d.name}</th>
+                  {Array.from({ length: rounds }, (_, i) => {
+                    const round = i + 1;
+                    const value = valueOf(d.name, round);
+                    const selected = editCell?.name === d.name && editCell?.round === round;
+                    return selected ? (
+                      <td className="recap-cell selected" key={round}>
+                        <div className="reps-row">
+                          <button
+                            className="reps-btn"
+                            aria-label={`Moins de ${d.name} round ${round}`}
+                            onClick={() => props.onSetReps(d.name, round, Math.max(0, value - 1))}
+                          >
+                            −
+                          </button>
+                          <div className="reps-value">{value || ''}</div>
+                          <button
+                            className="reps-btn"
+                            aria-label={`Plus de ${d.name} round ${round}`}
+                            onClick={() => props.onSetReps(d.name, round, value + 1)}
+                          >
+                            +
+                          </button>
+                        </div>
+                      </td>
+                    ) : (
+                      <td className="recap-cell" key={round}>
+                        <button
+                          className="recap-tap"
+                          aria-label={`Reps de ${d.name} round ${round}`}
+                          onClick={() => setEditCell({ name: d.name, round })}
+                        >
+                          {value || '–'}
+                        </button>
+                      </td>
+                    );
+                  })}
+                  <td className="recap-total">{totalOf(d.name) || '–'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </section>
       )}
 
@@ -139,7 +139,7 @@ export default function DoneScreen(props: Props) {
         </div>
       )}
 
-      <button className="btn primary big" onClick={props.onBack}>Retour</button>
+      <button className="btn primary big" onClick={props.onBack}>Valider la séance</button>
     </div>
   );
 }

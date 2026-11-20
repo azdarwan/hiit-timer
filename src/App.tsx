@@ -192,9 +192,10 @@ export default function App() {
   }, [doneSession, settings.syncUrl, settings.syncToken]);
 
   /**
-   * Retouche des reps du dernier round sur l'écran de fin (spec du 21/11) :
-   * met à jour la séance en mémoire ET dans l'historique local. Une valeur à 0
-   * retire la ligne (non saisi ≠ zéro). La synchro précédente devient obsolète.
+   * Retouche des reps sur l'écran de fin (spec du 21/11, récap éditable,
+   * tous rounds) : met à jour la séance en mémoire ET dans l'historique
+   * local. Une valeur à 0 retire la ligne (non saisi ≠ zéro). La synchro
+   * précédente devient obsolète.
    */
   const setDoneReps = useCallback((name: string, round: number, value: number) => {
     setDoneSession((prev) => {

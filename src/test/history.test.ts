@@ -45,7 +45,7 @@ describe('Historique des séances', () => {
     expect(lines[5]).toBe('2026-11-20;Séance;0;;25');
   });
 
-  it('met à jour les reps d\'une séance enregistrée (écran de fin, dernier round)', () => {
+  it('met à jour les reps d\'une séance enregistrée (écran de fin, récap éditable)', () => {
     const first = addSession({
       realMs: 2020000, totalMs: 2020000, config: DEFAULT_CONFIG, day: '2026-11-20',
       reps: [{ exercise: 'Pompes', round: 1, reps: 14 }],

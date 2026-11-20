@@ -35,6 +35,14 @@ const SAVE_INTERVAL_MS = 1000;
 const MISSED_CUE_GRACE_MS = 8000;
 
 /**
+ * Fenêtre de détection de rafale de « Passer » : deux skips à moins de 2 s
+ * d'intervalle = l'utilisateur défile, pas d'annonce d'atterrissage (spec du
+ * 22/11/2026). Un skip isolé garde son annonce (« Go ! », « Repos », « Round
+ * X. Go ! »), feedback utile d'un vrai changement de phase.
+ */
+const SKIP_BURST_MS = 2000;
+
+/**
  * Relie le moteur de timer, la file d'annonces pré-calculée, la voix, les
  * bips, la vibration, le wake lock et la persistance de séance.
  */
@@ -43,6 +51,8 @@ export class SessionController {
   private phases: Phase[] = [];
   private cues: Cue[] = [];
   private cueIndex = 0;
+  /** Horloge du dernier « Passer » (détection de rafale). */
+  private lastSkipClock: number | null = null;
   private config!: WorkoutConfig;
   private realElapsedMs = 0;
   private realAnchor = 0;
@@ -95,11 +105,22 @@ export class SessionController {
 
   skip(): void {
     if (this.finished) return;
+    const now = this.deps.clock ? this.deps.clock() : Date.now();
+    // Rafale = un autre skip il y a moins de SKIP_BURST_MS : on défile,
+    // l'atterrissage n'annonce rien et la file vocale en cours est purgée.
+    const burst = this.lastSkipClock !== null && now - this.lastSkipClock < SKIP_BURST_MS;
+    this.lastSkipClock = now;
     const next = this.engine.snapshot.phaseIndex + 1;
     if (next < this.phases.length) {
       const target = this.engine.phaseOffsetMs(next);
       while (this.cueIndex < this.cues.length && this.cues[this.cueIndex].at < target - 1) {
         this.cueIndex++;
+      }
+      if (burst) {
+        while (this.cueIndex < this.cues.length && this.cues[this.cueIndex].at <= target + 1) {
+          this.cueIndex++; // avale aussi l'annonce d'entrée de la phase d'atterrissage
+        }
+        this.deps.voice.cancel();
       }
     }
     this.engine.skip();

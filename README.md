@@ -8,6 +8,7 @@ Minuteur HIIT (High Intensity Interval Training) — PWA installable, **100 % ho
 - **Synchro serveur optionnelle** : mini-API PHP à déployer sur un hébergement OVH (cf. `server/README.md`), lisible aussi par un agent (JSON/CSV)
 - Annonces vocales (TTS navigateur, FR/EN) et bips Web Audio (aucun fichier son)
 - Pause / Passer / Terminer, reprise après fermeture de l'appli
+- « Passer » en rafale = silencieux : pas d'annonce d'atterrissage quand on enchaîne les skips (< 2 s), la file vocale est purgée ; un skip isolé garde son annonce
 - **Le timer ne se met jamais en pause** quand tu changes d'appli ou discutes avec un agent : le moteur à timestamps rattrape le temps réel ; les annonces manquées ne sont pas rejouées en rafale
 - « Round X » annoncé à la **fin** du repos long, décompte de fin de pause **en jalons** : le réglage (0-30 s), puis 10 s et 5 s, puis 3-2-1
 - Numéro + nom de l'exercice affichés en grand pendant le travail, exercice suivant affiché pendant le repos ; option « nom des exercices à voix haute »
@@ -109,7 +110,7 @@ Couvre notamment :
 - historique : stockage par jour (sans heure), CSV Excel fr avec ligne résumé + lignes par exercice/round ;
 - session en cours : reps persistées à la pause, restituées à la reprise, annonces manquées en arrière-plan sautées sans rafale ;
 - pause puis reprise sans dérive (pause réelle chronométrée) ;
-- « Passer » à l'exercice 7/15 → repos suivant direct, annonces de la portion sautée supprimées ;
+- « Passer » à l'exercice 7/15 → repos suivant direct, annonces de la portion sautée supprimées ; rafale de « Passer » silencieuse (ni annonce ni bip à l'atterrissage, file vocale purgée), skip isolé inchangé ;
 - persistance favoris/session en localStorage ;
 - séance réelle de 5 s de contenu terminée avec < 100 ms d'écart.
 

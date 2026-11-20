@@ -10,14 +10,17 @@ import { loadSession, clearSession } from '../modules/storage/session';
 
 function makeVoice() {
   const said: string[] = [];
+  let cancels = 0;
   const voice: VoiceService = {
     init: () => {},
     setLang: () => {},
     setEnabled: () => {},
     speak: (t: string) => said.push(t),
-    cancel: () => {},
+    cancel: () => {
+      cancels++;
+    },
   };
-  return { voice, said };
+  return { voice, said, cancels: () => cancels };
 }
 
 function makeBeeps() {
@@ -101,6 +104,39 @@ describe('SessionController', () => {
     // le décompte 3/2/1 du travail (à 9, 10, 11 s) ne doit pas être annoncé
     expect(said).not.toContain('3');
     expect(said).toContain('Repos');
+    controller.terminate();
+  });
+
+  it('rafale de Passer : ni annonce ni bip à l\'atterrissage, file vocale purgée ; skip isolé inchangé', async () => {
+    const { voice, said, cancels } = makeVoice();
+    const { beeps, played } = makeBeeps();
+    let virtual = 0;
+    // prepare 2 s, puis travail/repos × 4 exercices, sans repos long
+    const config: WorkoutConfig = { work: 10, rest: 5, exercises: 4, rounds: 1, longRest: 0, prepare: 2 };
+    const controller = new SessionController({ voice, beeps, settings, wakeLock: null, clock: () => virtual });
+    controller.start(config);
+    virtual = 7000; // milieu du premier travail
+    await new Promise((r) => setTimeout(r, 200));
+
+    // Skip isolé : l'atterrissage sur le repos annonce « Repos » (inchangé)
+    controller.skip();
+    expect(said).toContain('Repos');
+    const saidAfterIsolated = said.length;
+    const playedAfterIsolated = played.length;
+
+    // Rafale : 3 skips à moins de 2 s d'intervalle (horloge virtuelle figée)
+    controller.skip(); // atterrit sur travail 2 : « Go ! » avalé
+    controller.skip(); // atterrit sur repos : « Repos » avalé
+    controller.skip(); // atterrit sur travail 3 : « Go ! » avalé
+    expect(said.length).toBe(saidAfterIsolated);
+    expect(played.length).toBe(playedAfterIsolated);
+    expect(cancels()).toBe(3); // la file vocale est purgée à chaque skip de rafale
+
+    // Après plus de 2 s d'horloge virtuelle : retour au comportement normal
+    virtual += 2500;
+    controller.skip(); // atterrit sur le repos qui suit le travail 3
+    expect(said.length).toBe(saidAfterIsolated + 1);
+    expect(said[said.length - 1]).toBe('Repos');
     controller.terminate();
   });
 

@@ -105,7 +105,6 @@ describe('File d\'annonces pré-calculée', () => {
     const phases = buildPhases({ work: 20, rest: 5, exercises: 1, rounds: 2, longRest: 120, prepare: 0 });
     const says = buildCues(phases, 'fr', 0).map((c) => c.action.say!);
     expect(says).not.toContain('10');
-    const longRestIndex = phases.findIndex((p) => p.type === 'longRest');
     expect(says).toContain('3');
     expect(says).toContain('Repos');
   });

@@ -752,3 +752,58 @@ body {
   flex: 1;
   min-width: 140px;
 }
+
+/* ---------- Saisie des reps : fiche de fin de round (spec 21/11) ---------- */
+
+.reps-title {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.reps-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reps-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.reps-item .reps-label {
+  margin-bottom: 4px;
+}
+
+.reps-item .reps-btn {
+  width: 56px;
+  height: 46px;
+  font-size: 26px;
+}
+
+.reps-item .reps-value {
+  font-size: 28px;
+  min-width: 56px;
+}
+
+/* Ecran de fin : steppers du dernier round alignés à droite */
+.done-rep-row .reps-row {
+  gap: 12px;
+}
+
+.done-rep-row .reps-btn {
+  width: 44px;
+  height: 38px;
+  font-size: 20px;
+}
+
+.done-rep-row .reps-value {
+  font-size: 20px;
+  min-width: 40px;
+}

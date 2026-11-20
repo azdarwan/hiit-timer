@@ -3,7 +3,7 @@
 Minuteur HIIT (High Intensity Interval Training) — PWA installable, **100 % hors ligne, gratuite, sans pub, sans tracker, sans compte**.
 
 - Travail / Repos / Rounds / Repos long / Préparation, entièrement configurables
-- **Exercices nommés + comptage des reps** (pompes, tractions…) saisi à la pause
+- **Exercices nommés + comptage des reps** (pompes, tractions…) saisi à la fin de chaque round
 - **Historique des séances** (jour, durées, reps par round) + export CSV Excel
 - **Synchro serveur optionnelle** : mini-API PHP à déployer sur un hébergement OVH (cf. `server/README.md`), lisible aussi par un agent (JSON/CSV)
 - Annonces vocales (TTS navigateur, FR/EN) et bips Web Audio (aucun fichier son)
@@ -76,9 +76,10 @@ server/                           # mini-API PHP (OVH) : stockage des séances, 
 ### Saisie des reps et continuité des données
 
 Chaque exercice a un **nom** (modifiable dans l'écran config) et une option
-« Compter les reps ». À la pause qui suit un exercice compté, un stepper
-apparaît ; la saisie disparaît à la fin de la pause sans jamais bloquer le
-timer. Les reps sont stockées **par round** avec le **jour** de la séance
+« Compter les reps ». Pendant chaque **pause longue**, une fiche de saisie
+liste tous les exercices comptés du round qui vient de finir ; le dernier
+round (pas de pause longue après lui) se complète sur l'écran de fin.
+La saisie ne bloque jamais le timer. Les reps sont stockées **par round** avec le **jour** de la séance
 (l'heure est inutile). Les données sont rattachées au **nom normalisé** de
 l'exercice, pas à sa position : si le cycle change (ordre, nombre
 d'exercices), l'historique de chaque exercice reste comparable.

@@ -133,8 +133,10 @@ export default function ConfigScreen(props: Props) {
       <section className="section">
         <h2>Exercices &amp; reps</h2>
         <p className="section-hint">
-          Le comptage est demandé à la pause qui suit l'exercice. Les données suivent le nom :
-          si tu changes d'exercice dans le cycle, l'historique reste comparable.
+          Le comptage est demandé pendant la pause longue, à la fin de chaque
+          round ; le dernier round se complète sur l'écran de fin. Les données
+          suivent le nom : si tu changes d'exercice dans le cycle, l'historique
+          reste comparable.
         </p>
         <ul className="exercise-list">
           {defs.map((def, i) => (

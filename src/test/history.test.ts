@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import './localStorage.mock';
-import { addSession, listSessions, clearHistory, toCSV } from '../modules/storage/history';
+import { addSession, listSessions, clearHistory, toCSV, updateSessionReps } from '../modules/storage/history';
 import { DEFAULT_CONFIG } from '../types';
 
 describe('Historique des séances', () => {
@@ -43,5 +43,31 @@ describe('Historique des séances', () => {
     expect(lines).toContain('2026-11-19;Tractions;1;6;');
     // séance sans reps : juste sa ligne résumé (25 min)
     expect(lines[5]).toBe('2026-11-20;Séance;0;;25');
+  });
+
+  it('met à jour les reps d\'une séance enregistrée (écran de fin, dernier round)', () => {
+    const first = addSession({
+      realMs: 2020000, totalMs: 2020000, config: DEFAULT_CONFIG, day: '2026-11-20',
+      reps: [{ exercise: 'Pompes', round: 1, reps: 14 }],
+    });
+    addSession({ realMs: 1500000, totalMs: 2020000, config: DEFAULT_CONFIG, day: '2026-11-20', reps: [] });
+
+    // Retouche : remplace les reps du dernier round, garde le reste.
+    const reps = [
+      { exercise: 'Pompes', round: 1, reps: 14 },
+      { exercise: 'Pompes', round: 3, reps: 11 },
+      { exercise: 'Tractions', round: 3, reps: 6 },
+    ];
+    const updated = updateSessionReps(first.id, reps);
+    expect(updated?.reps).toEqual(reps);
+
+    const all = listSessions();
+    expect(all).toHaveLength(2);
+    expect(all[0].reps).toEqual(reps);
+    // l'autre séance est intacte
+    expect(all[1].reps).toEqual([]);
+    // identifiant inconnu : rien ne change, renvoie null
+    expect(updateSessionReps('inconnu', [])).toBeNull();
+    expect(listSessions()).toHaveLength(2);
   });
 });

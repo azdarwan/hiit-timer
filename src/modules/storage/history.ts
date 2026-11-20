@@ -62,6 +62,24 @@ export function listSessions(): RecordedSession[] {
   }
 }
 
+/**
+ * Remplace les reps d'une séance enregistrée (saisie/retouche sur l'écran
+ * de fin, cf. spec du 21/11/2026). Renvoie la séance mise à jour, ou null
+ * si l'identifiant est inconnu.
+ */
+export function updateSessionReps(id: string, reps: RepRecord[]): RecordedSession | null {
+  const all = listSessions();
+  const index = all.findIndex((s) => s.id === id);
+  if (index === -1) return null;
+  all[index] = { ...all[index], reps };
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(all));
+  } catch {
+    // silencieux : le quota peut être plein
+  }
+  return all[index];
+}
+
 export function clearHistory(): void {
   try {
     localStorage.removeItem(HISTORY_KEY);

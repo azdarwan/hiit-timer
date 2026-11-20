@@ -17,15 +17,20 @@ interface Props {
   simSpeed: number;
 }
 
-function phaseLabel(snapshot: EngineSnapshot): string {
+function phaseLabel(snapshot: EngineSnapshot, defs: { name: string }[]): string {
   const p = snapshot.phase;
   switch (p.type) {
     case 'prepare':
       return 'Préparation';
     case 'work':
-      return p.exerciseName || `Exercice ${p.exercise}/${p.exercisesInRound}`;
+      // Numéro + nom de l'exercice en cours, bien visibles (spec 21/11).
+      return p.exerciseName
+        ? `Exercice ${p.exercise}/${p.exercisesInRound} · ${p.exerciseName}`
+        : `Exercice ${p.exercise}/${p.exercisesInRound}`;
     case 'rest':
-      return 'Repos';
+      // Nom de l'exercice qui arrive (spec 21/11) : un repos n'existe
+      // qu'entre deux exercices, le suivant est defs[p.exercise] (0-based).
+      return p.exercise < defs.length ? `Repos · à suivre : ${defs[p.exercise].name}` : 'Repos';
     case 'longRest':
       return 'Repos long';
     case 'done':
@@ -59,7 +64,7 @@ export default function SessionScreen(props: Props) {
         Round {snapshot.phase.round}/{props.config.rounds}
       </div>
 
-      <div className="session-phase-label">{phaseLabel(snapshot)}</div>
+      <div className="session-phase-label">{phaseLabel(snapshot, defs)}</div>
 
       <div className="session-clock">{formatDuration(remainingSec)}</div>
 

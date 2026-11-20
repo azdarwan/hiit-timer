@@ -165,7 +165,7 @@ export class SessionController {
 
   private setup(config: WorkoutConfig): void {
     this.phases = buildPhases(config);
-    this.cues = buildCues(this.phases, this.deps.settings.lang, this.deps.settings.countdownSec);
+    this.cues = buildCues(this.phases, this.deps.settings.lang, this.deps.settings.countdownSec, this.deps.settings.sayExerciseNames);
     this.cueIndex = 0;
     this.finished = false;
     this.engine = new TimerEngine(

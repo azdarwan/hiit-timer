@@ -134,9 +134,9 @@ export default function ConfigScreen(props: Props) {
         <h2>Exercices &amp; reps</h2>
         <p className="section-hint">
           Le comptage est demandé pendant la pause longue, à la fin de chaque
-          round ; le dernier round se complète sur l'écran de fin. Les données
-          suivent le nom : si tu changes d'exercice dans le cycle, l'historique
-          reste comparable.
+          round ; l'écran de fin montre le récapitulatif complet de la séance,
+          corrigible avant validation. Les données suivent le nom : si tu
+          changes d'exercice dans le cycle, l'historique reste comparable.
         </p>
         <ul className="exercise-list">
           {defs.map((def, i) => (
@@ -240,6 +240,14 @@ export default function ConfigScreen(props: Props) {
           />
         </label>
         <label className="setting-row">
+          <span>Nom des exercices à voix haute</span>
+          <input
+            type="checkbox"
+            checked={settings.sayExerciseNames}
+            onChange={(e) => onSettingsChange({ ...settings, sayExerciseNames: e.target.checked })}
+          />
+        </label>
+        <label className="setting-row">
           <span>Volume des bips</span>
           <input
             type="range"
@@ -270,6 +278,10 @@ export default function ConfigScreen(props: Props) {
             </button>
           </div>
         </div>
+        <p className="section-hint">
+          Fin de pause longue en jalons : le nombre réglé, puis 10 s et 5 s
+          (si inférieurs), puis 3, 2, 1.
+        </p>
         <label className="setting-row">
           <span>Garder l'écran allumé</span>
           <input

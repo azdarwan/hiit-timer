@@ -3,13 +3,14 @@
 Minuteur HIIT (High Intensity Interval Training) — PWA installable, **100 % hors ligne, gratuite, sans pub, sans tracker, sans compte**.
 
 - Travail / Repos / Rounds / Repos long / Préparation, entièrement configurables
-- **Exercices nommés + comptage des reps** (pompes, tractions…) saisi à la fin de chaque round
+- **Exercices nommés + comptage des reps** (pompes, tractions…) saisi à la fin de chaque round, avec **récapitulatif complet corrigible avant validation** sur l'écran de fin
 - **Historique des séances** (jour, durées, reps par round) + export CSV Excel
 - **Synchro serveur optionnelle** : mini-API PHP à déployer sur un hébergement OVH (cf. `server/README.md`), lisible aussi par un agent (JSON/CSV)
 - Annonces vocales (TTS navigateur, FR/EN) et bips Web Audio (aucun fichier son)
 - Pause / Passer / Terminer, reprise après fermeture de l'appli
 - **Le timer ne se met jamais en pause** quand tu changes d'appli ou discutes avec un agent : le moteur à timestamps rattrape le temps réel ; les annonces manquées ne sont pas rejouées en rafale
-- « Round X » annoncé à la **fin** du repos long, décompte de fin de pause paramétrable (10 s par défaut)
+- « Round X » annoncé à la **fin** du repos long, décompte de fin de pause **en jalons** : le réglage (0-30 s), puis 10 s et 5 s, puis 3-2-1
+- Numéro + nom de l'exercice affichés en grand pendant le travail, exercice suivant affiché pendant le repos ; option « nom des exercices à voix haute »
 - Screen Wake Lock pendant la séance, vibration sur les transitions
 - Timer basé sur des timestamps réels : dérive nulle par construction, testée
 
@@ -77,8 +78,10 @@ server/                           # mini-API PHP (OVH) : stockage des séances, 
 
 Chaque exercice a un **nom** (modifiable dans l'écran config) et une option
 « Compter les reps ». Pendant chaque **pause longue**, une fiche de saisie
-liste tous les exercices comptés du round qui vient de finir ; le dernier
-round (pas de pause longue après lui) se complète sur l'écran de fin.
+liste tous les exercices comptés du round qui vient de finir. À la **fin de la
+séance**, un tableau récapitulatif (lignes = exercices, colonnes = rounds) montre
+tout ce qui a été saisi, corrigible au doigt avant « Valider la séance »
+(validation non bloquante : la séance est déjà sauvegardée).
 La saisie ne bloque jamais le timer. Les reps sont stockées **par round** avec le **jour** de la séance
 (l'heure est inutile). Les données sont rattachées au **nom normalisé** de
 l'exercice, pas à sa position : si le cycle change (ordre, nombre
@@ -102,7 +105,7 @@ Couvre notamment :
 
 - durée totale par défaut = **2020 s = 33:40**, somme des phases identique ;
 - noms des exercices portés par les phases (travail, repos, repos long) et compatibilité avec les anciennes configs sans définitions ;
-- toutes les annonces du tableau au bon instant sur la séance par défaut complète (horloge virtuelle déterministe), « Round X » à la fin du repos long, décompte étendu (et sa coupure sur un repos long trop court) ;
+- toutes les annonces du tableau au bon instant sur la séance par défaut complète (horloge virtuelle déterministe), « Round X » à la fin du repos long, décompte en jalons (D=15 → 15, 10, 5, 3-2-1 et sa coupure sur un repos long trop court) ;
 - historique : stockage par jour (sans heure), CSV Excel fr avec ligne résumé + lignes par exercice/round ;
 - session en cours : reps persistées à la pause, restituées à la reprise, annonces manquées en arrière-plan sautées sans rafale ;
 - pause puis reprise sans dérive (pause réelle chronométrée) ;
@@ -112,7 +115,7 @@ Couvre notamment :
 
 ## Réglages
 
-Langue de la voix (FR/EN), choix de la voix (les meilleures voix sont choisies automatiquement : Google, Natural/Premium, voix locales de qualité ; sélection manuelle possible), voix on/off, volume des bips, décompte de fin de pause (10 s par défaut, 0 = coupé), garder l'écran allumé (par défaut, repli silencieux si non supporté), vibration sur les transitions, synchro serveur (URL + jeton). Réglages, configuration et favoris sont mémorisés entre deux ouvertures (localStorage).
+Langue de la voix (FR/EN), choix de la voix (les meilleures voix sont choisies automatiquement : Google, Natural/Premium, voix locales de qualité ; sélection manuelle possible), voix on/off, nom des exercices à voix haute (off par défaut), volume des bips, décompte de fin de pause en jalons (10 s par défaut, 0 = coupé), garder l'écran allumé (par défaut, repli silencieux si non supporté), vibration sur les transitions, synchro serveur (URL + jeton). Réglages, configuration et favoris sont mémorisés entre deux ouvertures (localStorage).
 
 ## Validation des champs
 

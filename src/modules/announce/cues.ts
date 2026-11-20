@@ -37,17 +37,27 @@ const STRINGS: Record<Lang, Record<string, string>> = {
  * Règles :
  * - début de préparation : "Prépare-toi"
  * - 3 dernières secondes de chaque phase >= 4 s : "3", "2", "1" + bip
- * - repos long : décompte étendu (par défaut 10 s avant la fin), paramétrable
- * - transition vers un travail : "Go !" (précédé de "Round X" si nouveau round).
- *   "Round X" est donc prononcé à la FIN du repos long, pas à son début.
+ * - repos long : décompte en JALONS (spec du 21/11/2026) : le réglage D est
+ *   annoncé, puis les multiples de 5 strictement inférieurs en remontant
+ *   depuis la fin (10 puis 5), puis le 3-2-1 standard. Total <= 6 annonces.
+ *   Ex : D=30 -> "30", "10", "5", 3, 2, 1 ; D=15 -> "15", "10", "5", 3, 2, 1.
+ * - transition vers un travail : "Go !", précédé du nom de l'exercice si
+ *   `sayExerciseNames` est actif ("Pompes. Go !"), et de "Round X" si nouveau
+ *   round. "Round X" est donc prononcé à la FIN du repos long, pas à son début.
  * - moitié d'un travail >= 12 s : "Moitié"
  * - transition vers un repos : "Repos"
  * - fin de séance : "Séance terminée, bravo !"
  *
- * `countdownSec` : durée du décompte de fin de repos long (0 = décompte
- * standard 3-2-1). Coupé à `duration - 1` si le repos est plus court.
+ * `countdownSec` : jalon de départ du décompte de fin de repos long
+ * (0 = décompte standard 3-2-1 seul). Coupé à `duration - 1` si le repos
+ * est plus court. `sayExerciseNames` : prononce le nom de chaque exercice.
  */
-export function buildCues(phases: Phase[], lang: Lang, countdownSec: number = DEFAULT_SETTINGS.countdownSec): Cue[] {
+export function buildCues(
+  phases: Phase[],
+  lang: Lang,
+  countdownSec: number = DEFAULT_SETTINGS.countdownSec,
+  sayExerciseNames: boolean = DEFAULT_SETTINGS.sayExerciseNames,
+): Cue[] {
   const s = STRINGS[lang];
   const offsets = phaseOffsets(phases);
   const cues: Cue[] = [];
@@ -61,7 +71,8 @@ export function buildCues(phases: Phase[], lang: Lang, countdownSec: number = DE
       cues.push({ at, action: { say: s.prepare, beep: 'transition', vibrate: 100 } });
     } else if (phase.type === 'work') {
       const firstOfRound = phase.exercise === 1;
-      const say = firstOfRound ? `${roundText(phase.round)}. ${s.go}` : s.go;
+      const name = sayExerciseNames && phase.exerciseName ? `${phase.exerciseName}. ` : '';
+      const say = firstOfRound ? `${roundText(phase.round)}. ${name}${s.go}` : `${name}${s.go}`;
       cues.push({ at, action: { say, beep: 'transition', vibrate: 100 } });
     } else if (phase.type === 'rest') {
       cues.push({ at, action: { say: s.rest, beep: 'transition', vibrate: 80 } });
@@ -72,13 +83,19 @@ export function buildCues(phases: Phase[], lang: Lang, countdownSec: number = DE
     }
 
     if (phase.type === 'longRest') {
-      // Décompte étendu de fin de pause (backlog n°4) : remplace le 3-2-1.
+      // Décompte en jalons de fin de pause (spec du 21/11/2026) : le jalon
+      // de départ est le réglage (0-30 s), suivi des multiples de 5
+      // strictement inférieurs (10 puis 5), puis du 3-2-1 standard ci-dessous.
+      // Maximum 6 annonces vocales, chiffres entiers (règle de Wandrille).
       const effective = Math.min(countdownSec, d - 1);
       if (effective >= 4) {
-        for (let k = effective; k >= 1; k--) {
-          cues.push({ at: (offsets[i] + d - k) * 1000, action: { say: String(k), beep: k <= 3 ? 'tick' : undefined } });
+        const milestones = [effective];
+        for (const m of [10, 5]) {
+          if (m < effective) milestones.push(m);
         }
-        return;
+        for (const m of milestones) {
+          cues.push({ at: (offsets[i] + d - m) * 1000, action: { say: String(m) } });
+        }
       }
     }
 

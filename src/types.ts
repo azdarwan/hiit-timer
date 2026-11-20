@@ -34,6 +34,8 @@ export interface Settings {
   vibrate: boolean;
   /** Décompte vocal avant la fin du repos long, en secondes (0 = désactivé) */
   countdownSec: number;
+  /** Prononcer le nom de l'exercice au début de chaque travail ("Pompes. Go !") */
+  sayExerciseNames: boolean;
   /** URL du serveur de stockage (ex. https://domaine.tld/hiit/api.php). Vide = pas de synchro. */
   syncUrl: string;
   /** Jeton d'authentification du serveur de stockage */
@@ -58,6 +60,7 @@ export const DEFAULT_SETTINGS: Settings = {
   keepAwake: true,
   vibrate: true,
   countdownSec: 10,
+  sayExerciseNames: false,
   syncUrl: '',
   syncToken: '',
 };

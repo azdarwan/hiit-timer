@@ -41,11 +41,15 @@ describe('File d\'annonces pré-calculée', () => {
     const longRestEnd3 = (offsets[longRestIndex3] + 120) * 1000;
     expect(says).toContainEqual({ at: longRestEnd3, say: 'Round 3. Go !' });
 
-    // Décompte étendu (10 s par défaut) avant la fin du repos long (n°4)
+    // Décompte en jalons (réglage 10 s par défaut, spec 21/11) avant la fin
+    // des repos longs : "10", "5", puis 3, 2, 1 (plus de 9, 8, 7...)
     for (const idx of [longRestIndex, longRestIndex3]) {
       const d = phases[idx].duration;
-      for (let k = 10; k >= 4; k--) {
+      for (const k of [10, 5, 3, 2, 1]) {
         expect(says).toContainEqual({ at: (offsets[idx] + d - k) * 1000, say: String(k) });
+      }
+      for (const k of [9, 8, 7, 6, 4]) {
+        expect(says).not.toContainEqual({ at: (offsets[idx] + d - k) * 1000, say: String(k) });
       }
     }
     expect(says.filter((s) => s.say === '10')).toHaveLength(2);
@@ -116,4 +120,51 @@ describe('File d\'annonces pré-calculée', () => {
     expect(says).not.toContain('8');
     expect(says).toContain('7'); // décompte à duration - 1
   });
+
+  it('jalons sur la pause longue : D=30 -> 30, 10, 5 puis 3, 2, 1 (spec 21/11)', () => {
+    const phases = buildPhases({ work: 20, rest: 5, exercises: 1, rounds: 2, longRest: 60, prepare: 0 });
+    const cues = buildCues(phases, 'fr', 30);
+    const says = cues.filter((c) => c.action.say).map((c) => ({ at: c.at, say: c.action.say! }));
+    const idx = phases.findIndex((p) => p.type === 'longRest');
+    expect(idx).toBeGreaterThan(-1);
+    const offsets = phaseOffsets(phases);
+    const d = phases[idx].duration;
+    for (const k of [30, 10, 5, 3, 2, 1]) {
+      expect(says).toContainEqual({ at: (offsets[idx] + d - k) * 1000, say: String(k) });
+    }
+    for (const k of [25, 20, 15, 9, 8, 7, 6, 4]) {
+      expect(says).not.toContainEqual({ at: (offsets[idx] + d - k) * 1000, say: String(k) });
+    }
+  });
+
+  it('jalons sur la pause longue : D=15 -> 15, 10, 5 puis 3, 2, 1 (exemple de Wandrille)', () => {
+    const phases = buildPhases({ work: 20, rest: 5, exercises: 1, rounds: 2, longRest: 60, prepare: 0 });
+    const cues = buildCues(phases, 'fr', 15);
+    const says = cues.filter((c) => c.action.say).map((c) => ({ at: c.at, say: c.action.say! }));
+    const idx = phases.findIndex((p) => p.type === 'longRest');
+    const offsets = phaseOffsets(phases);
+    const d = phases[idx].duration;
+    for (const k of [15, 10, 5, 3, 2, 1]) {
+      expect(says).toContainEqual({ at: (offsets[idx] + d - k) * 1000, say: String(k) });
+    }
+  });
+
+  it("annonce le nom de l'exercice avec le 'Go !' quand l'option est active", () => {
+    const phases = buildPhases({
+      work: 20, rest: 0, exercises: 2, rounds: 1, longRest: 0, prepare: 0,
+      exerciseDefs: [
+        { name: 'Pompes', countReps: true },
+        { name: 'Crunchs', countReps: false },
+      ],
+    });
+    const says = buildCues(phases, 'fr', 10, true).map((c) => c.action.say!);
+    expect(says).toContain('Round 1. Pompes. Go !');
+    expect(says).toContain('Crunchs. Go !');
+    // Sans l'option : comportement inchangé
+    const plain = buildCues(phases, 'fr', 10, false).map((c) => c.action.say!);
+    expect(plain).toContain('Round 1. Go !');
+    expect(plain).toContain('Go !');
+    expect(plain).not.toContain('Pompes. Go !');
+  });
 });
+

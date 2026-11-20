@@ -807,3 +807,90 @@ body {
   font-size: 20px;
   min-width: 40px;
 }
+
+/* ---------- Récap éditable de fin de séance (spec 21/11/2026) ---------- */
+
+.recap-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.recap-table th,
+.recap-table td {
+  text-align: center;
+  padding: 4px 2px;
+}
+
+.recap-table thead th {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.recap-table .recap-name {
+  text-align: left;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 34%;
+}
+
+.recap-cell {
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.recap-cell.selected {
+  background: var(--accent);
+  color: #fff;
+}
+
+.recap-tap {
+  appearance: none;
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 18px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  width: 100%;
+  min-height: 40px;
+  cursor: pointer;
+}
+
+.recap-cell.selected .reps-row {
+  justify-content: center;
+  gap: 4px;
+}
+
+.recap-cell.selected .reps-btn {
+  width: 26px;
+  height: 30px;
+  font-size: 16px;
+  min-height: 30px;
+}
+
+.recap-cell.selected .reps-value {
+  min-width: 22px;
+  font-size: 17px;
+}
+
+.recap-total {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Libellé de travail plus visible (spec 21/11/2026) ---------- */
+
+.phase-work .session-phase-label {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text);
+}

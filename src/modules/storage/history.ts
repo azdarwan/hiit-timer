@@ -84,7 +84,8 @@ function csvEscape(value: string | number): string {
 export function toCSV(sessions: RecordedSession[]): string {
   const rows: (string | number)[][] = [['date', 'exercice', 'round', 'reps', 'duree_min']];
   for (const s of [...sessions].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0))) {
-    const minutes = (s.realMs / 60000).toFixed(1);
+    // Minutes avec 1 décimale au besoin, sans '.0' superflu (25, pas 25.0)
+    const minutes = String(Math.round((s.realMs / 60000) * 10) / 10);
     rows.push([s.day, 'Séance', 0, '', minutes]);
     for (const r of [...s.reps].sort((a, b) => a.exercise.localeCompare(b.exercise) || a.round - b.round)) {
       rows.push([s.day, r.exercise, r.round, r.reps, '']);

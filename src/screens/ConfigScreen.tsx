@@ -1,14 +1,19 @@
 import type { Settings, WorkoutConfig } from '../types';
-import { CONFIG_LIMITS } from '../types';
+import { CONFIG_LIMITS, COUNTDOWN_LIMITS } from '../types';
 import { formatDuration, totalDuration } from '../modules/workout/plan';
+import { exercisesFor } from '../modules/workout/exercises';
 import type { Favorite } from '../modules/storage/favorites';
 import type { SavedSession } from '../modules/storage/session';
+import { listSessions, clearHistory, toCSV, downloadCSV } from '../modules/storage/history';
+import type { VoiceOption } from '../modules/voice/VoiceService';
+import { useState } from 'react';
 
 interface Props {
   config: WorkoutConfig;
   onConfigChange: (c: WorkoutConfig) => void;
   settings: Settings;
   onSettingsChange: (s: Settings) => void;
+  voices: VoiceOption[];
   favorites: Favorite[];
   onFavoritesChange: (f: Favorite[]) => void;
   onStart: () => void;
@@ -27,13 +32,29 @@ const FIELDS: { key: keyof WorkoutConfig; label: string; unit: string }[] = [
 ];
 
 export default function ConfigScreen(props: Props) {
-  const { config, onConfigChange, settings, onSettingsChange, favorites } = props;
+  const { config, onConfigChange, settings, onSettingsChange, favorites, voices } = props;
+  const [historyCount, setHistoryCount] = useState(() => listSessions().length);
   const total = totalDuration(config);
+  const defs = exercisesFor(config);
 
   const setField = (key: keyof WorkoutConfig, value: number) => {
-    const { min } = CONFIG_LIMITS[key];
+    const { min } = CONFIG_LIMITS[key as keyof typeof CONFIG_LIMITS];
     if (!Number.isFinite(value) || value < min) value = min;
     onConfigChange({ ...config, [key]: value });
+  };
+
+  /** Met à jour la définition d'un exercice (nom ou comptage de reps). */
+  const setExercise = (index: number, patch: Partial<{ name: string; countReps: boolean }>) => {
+    const next = defs.map((d, i) => (i === index ? { ...d, ...patch } : { ...d }));
+    onConfigChange({ ...config, exerciseDefs: next });
+  };
+
+  const setCountdown = (value: number) => {
+    if (!Number.isFinite(value)) value = COUNTDOWN_LIMITS.min;
+    onSettingsChange({
+      ...settings,
+      countdownSec: Math.min(COUNTDOWN_LIMITS.max, Math.max(COUNTDOWN_LIMITS.min, value)),
+    });
   };
 
   const saveFavorite = (name: string) => {
@@ -42,6 +63,19 @@ export default function ConfigScreen(props: Props) {
     const next = favorites.filter((f) => f.name !== trimmed);
     next.push({ name: trimmed, config });
     props.onFavoritesChange(next);
+  };
+
+  const exportHistory = () => {
+    const sessions = listSessions();
+    if (sessions.length === 0) return;
+    downloadCSV(toCSV(sessions), 'hiit-historique.csv');
+  };
+
+  const wipeHistory = () => {
+    if (window.confirm('Effacer tout l\'historique des séances enregistrées ?')) {
+      clearHistory();
+      setHistoryCount(0);
+    }
   };
 
   return (
@@ -63,8 +97,8 @@ export default function ConfigScreen(props: Props) {
 
       <div className="fields">
         {FIELDS.map((f) => {
-          const { min, step } = CONFIG_LIMITS[f.key];
-          const value = config[f.key];
+          const { min, step } = CONFIG_LIMITS[f.key as keyof typeof CONFIG_LIMITS];
+          const value = config[f.key] as number;
           return (
             <div className="stepper" key={f.key}>
               <div className="stepper-label">
@@ -95,6 +129,38 @@ export default function ConfigScreen(props: Props) {
       <button className="btn primary start-btn" onClick={props.onStart}>
         Start
       </button>
+
+      <section className="section">
+        <h2>Exercices &amp; reps</h2>
+        <p className="section-hint">
+          Le comptage est demandé à la pause qui suit l'exercice. Les données suivent le nom :
+          si tu changes d'exercice dans le cycle, l'historique reste comparable.
+        </p>
+        <ul className="exercise-list">
+          {defs.map((def, i) => (
+            <li className="exercise-row" key={i}>
+              <span className="exercise-index">{i + 1}</span>
+              <input
+                className="exercise-name"
+                type="text"
+                value={def.name}
+                maxLength={30}
+                aria-label={`Nom de l'exercice ${i + 1}`}
+                onChange={(e) => setExercise(i, { name: e.target.value })}
+              />
+              <label className="exercise-reps">
+                <input
+                  type="checkbox"
+                  checked={def.countReps}
+                  aria-label={`Compter les reps : ${def.name}`}
+                  onChange={(e) => setExercise(i, { countReps: e.target.checked })}
+                />
+                reps
+              </label>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <section className="section">
         <h2>Favoris</h2>
@@ -149,6 +215,20 @@ export default function ConfigScreen(props: Props) {
             <option value="en">English</option>
           </select>
         </label>
+        {voices.length > 0 && (
+          <label className="setting-row">
+            <span>Voix</span>
+            <select
+              value={settings.voiceName ?? ''}
+              onChange={(e) => onSettingsChange({ ...settings, voiceName: e.target.value || null })}
+            >
+              <option value="">Choix automatique</option>
+              {voices.map((v) => (
+                <option key={v.name} value={v.name}>{v.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="setting-row">
           <span>Annonces vocales</span>
           <input
@@ -168,6 +248,26 @@ export default function ConfigScreen(props: Props) {
             onChange={(e) => onSettingsChange({ ...settings, beepVolume: Number(e.target.value) })}
           />
         </label>
+        <div className="setting-row">
+          <span>Décompte de fin de pause</span>
+          <div className="stepper-row setting-stepper">
+            <button className="step-btn" onClick={() => setCountdown(settings.countdownSec - COUNTDOWN_LIMITS.step)} aria-label="Moins de décompte">
+              −
+            </button>
+            <input
+              className="step-input"
+              type="number"
+              inputMode="numeric"
+              min={COUNTDOWN_LIMITS.min}
+              max={COUNTDOWN_LIMITS.max}
+              value={settings.countdownSec}
+              onChange={(e) => setCountdown(Number(e.target.value))}
+            />
+            <button className="step-btn" onClick={() => setCountdown(settings.countdownSec + COUNTDOWN_LIMITS.step)} aria-label="Plus de décompte">
+              +
+            </button>
+          </div>
+        </div>
         <label className="setting-row">
           <span>Garder l'écran allumé</span>
           <input
@@ -182,6 +282,50 @@ export default function ConfigScreen(props: Props) {
             type="checkbox"
             checked={settings.vibrate}
             onChange={(e) => onSettingsChange({ ...settings, vibrate: e.target.checked })}
+          />
+        </label>
+      </section>
+
+      <section className="section">
+        <h2>Historique</h2>
+        <p className="section-hint">
+          {historyCount > 0
+            ? `${historyCount} séance${historyCount > 1 ? 's' : ''} enregistrée${historyCount > 1 ? 's' : ''} sur cet appareil.`
+            : 'Aucune séance enregistrée pour l\'instant.'}
+        </p>
+        <div className="history-actions">
+          <button className="btn ghost" onClick={exportHistory} disabled={historyCount === 0}>
+            Exporter CSV
+          </button>
+          <button className="btn ghost" onClick={wipeHistory} disabled={historyCount === 0}>
+            Vider
+          </button>
+        </div>
+      </section>
+
+      <section className="section">
+        <h2>Synchro serveur (optionnel)</h2>
+        <p className="section-hint">
+          Stocke chaque séance sur ton serveur (cf. dossier <code>server/</code> du dépôt, hébergement OVH).
+        </p>
+        <label className="setting-row">
+          <span>URL du serveur</span>
+          <input
+            type="url"
+            className="sync-input"
+            placeholder="https://ton-domaine.tld/hiit/api.php"
+            value={settings.syncUrl}
+            onChange={(e) => onSettingsChange({ ...settings, syncUrl: e.target.value.trim() })}
+          />
+        </label>
+        <label className="setting-row">
+          <span>Jeton</span>
+          <input
+            type="text"
+            className="sync-input"
+            placeholder="Jeton secret"
+            value={settings.syncToken}
+            onChange={(e) => onSettingsChange({ ...settings, syncToken: e.target.value.trim() })}
           />
         </label>
       </section>

@@ -2,6 +2,7 @@ import type { EngineSnapshot } from '../modules/timer/engine';
 import { TimerEngine } from '../modules/timer/engine';
 import type { Phase } from '../modules/workout/plan';
 import { buildPhases } from '../modules/workout/plan';
+import { normalizeName } from '../modules/workout/exercises';
 import type { Cue } from '../modules/announce/cues';
 import { buildCues } from '../modules/announce/cues';
 import type { VoiceService } from '../modules/voice/VoiceService';
@@ -9,6 +10,7 @@ import type { BeepService } from '../modules/audio/beeps';
 import type { WakeLockManager } from '../modules/wakelock/wakelock';
 import type { Settings, WorkoutConfig } from '../types';
 import type { SavedSession } from '../modules/storage/session';
+import type { RepRecord } from '../modules/storage/history';
 import { saveSession, clearSession } from '../modules/storage/session';
 
 export interface SessionControllerDeps {
@@ -19,11 +21,18 @@ export interface SessionControllerDeps {
   /** Horloge virtuelle du moteur, en ms. Par défaut : Date.now(). */
   clock?: () => number;
   onSnapshot?: (s: EngineSnapshot) => void;
-  onFinish?: (realElapsedMs: number, virtualElapsedMs: number) => void;
+  onFinish?: (realElapsedMs: number, virtualElapsedMs: number, reps: RepRecord[]) => void;
   onPaused?: () => void;
 }
 
 const SAVE_INTERVAL_MS = 1000;
+/**
+ * Annonces plus vieilles que cela au moment du tick : elles sont sautées.
+ * Assez généreux pour couvrir le jitter des ticks et le mode simulation,
+ * assez court pour ne pas rejouer en rafale ce qui a été manqué pendant
+ * que l'appli était en arrière-plan.
+ */
+const MISSED_CUE_GRACE_MS = 8000;
 
 /**
  * Relie le moteur de timer, la file d'annonces pré-calculée, la voix, les
@@ -39,6 +48,8 @@ export class SessionController {
   private realAnchor = 0;
   private lastSave = 0;
   private finished = false;
+  /** Reps saisies, clé "round:nom normalisé". */
+  private reps = new Map<string, number>();
 
   constructor(private deps: SessionControllerDeps) {}
 
@@ -47,6 +58,7 @@ export class SessionController {
     this.setup(config);
     this.realElapsedMs = 0;
     this.realAnchor = Date.now();
+    this.reps.clear();
     if (this.deps.settings.keepAwake && this.deps.wakeLock) void this.deps.wakeLock.request();
     this.engine.start();
   }
@@ -59,6 +71,8 @@ export class SessionController {
     this.cueIndex = this.cues.findIndex((c) => c.at > saved.elapsedMs + 1);
     if (this.cueIndex < 0) this.cueIndex = this.cues.length;
     this.realElapsedMs = saved.realElapsedMs;
+    this.reps.clear();
+    for (const [k, v] of Object.entries(saved.reps ?? {})) this.reps.set(k, v);
     this.emit();
   }
 
@@ -108,13 +122,50 @@ export class SessionController {
     this.deps.beeps.setVolume(settings.beepVolume);
   }
 
+  /** Saisie des reps d'un exercice pour le round en cours. */
+  setReps(name: string, round: number, value: number): void {
+    const v = Math.max(0, Math.min(999, Math.round(value)));
+    if (!name || round < 1) return;
+    this.reps.set(`${round}:${normalizeName(name)}`, v);
+    this.persist();
+  }
+
+  /** Valeur saisie pour un exercice/round (0 si rien). */
+  getReps(name: string, round: number): number {
+    return this.reps.get(`${round}:${normalizeName(name)}`) ?? 0;
+  }
+
+  /** Les reps saisies, sous forme d'enregistrements exportables. */
+  getRepRecords(): RepRecord[] {
+    return [...this.reps.entries()]
+      .map(([key, reps]) => {
+        const sep = key.indexOf(':');
+        return { exercise: key.slice(sep + 1), round: Number(key.slice(0, sep)), reps };
+      })
+      .map((r) => ({ ...r, exercise: this.displayName(r.exercise, r.round) ?? r.exercise }))
+      .filter((r) => r.reps > 0)
+      .sort((a, b) => a.round - b.round || a.exercise.localeCompare(b.exercise));
+  }
+
+  private displayName(normalized: string, round: number): string | null {
+    const phase = this.phases.find(
+      (p) => p.type === 'work' && p.round === round && normalizeName(p.exerciseName) === normalized,
+    );
+    return phase?.exerciseName ?? null;
+  }
+
   get snapshot(): EngineSnapshot {
     return this.engine.snapshot;
   }
 
+  /** Config de la séance en cours. */
+  get workoutConfig(): WorkoutConfig {
+    return this.config;
+  }
+
   private setup(config: WorkoutConfig): void {
     this.phases = buildPhases(config);
-    this.cues = buildCues(this.phases, this.deps.settings.lang);
+    this.cues = buildCues(this.phases, this.deps.settings.lang, this.deps.settings.countdownSec);
     this.cueIndex = 0;
     this.finished = false;
     this.engine = new TimerEngine(
@@ -131,7 +182,7 @@ export class SessionController {
           this.pumpAt(this.engine.snapshot.totalMs);
           this.deps.wakeLock?.release();
           clearSession();
-          this.deps.onFinish?.(this.realElapsedMs, this.engine.snapshot.totalMs);
+          this.deps.onFinish?.(this.realElapsedMs, this.engine.snapshot.totalMs, this.getRepRecords());
         },
       },
       this.deps.clock,
@@ -142,10 +193,17 @@ export class SessionController {
     this.pumpAt(this.engine.elapsed());
   }
 
+  /**
+   * Déclenche toutes les annonces dues. Une annonce trop tardive (séance
+   * passée en arrière-plan : l'appli tourne sans pause, cf. App.tsx) est
+   * sautée plutôt que rejouée en rafale au retour sur l'appli.
+   */
   private pumpAt(elapsedMs: number): void {
     while (this.cueIndex < this.cues.length && this.cues[this.cueIndex].at <= elapsedMs + 1) {
-      this.fire(this.cues[this.cueIndex]);
+      const cue = this.cues[this.cueIndex];
       this.cueIndex++;
+      if (cue.at < elapsedMs - MISSED_CUE_GRACE_MS) continue; // trop tard : on saute
+      this.fire(cue);
     }
   }
 
@@ -175,11 +233,14 @@ export class SessionController {
     const s = this.engine.snapshot;
     const running = s.running;
     const realExtra = running ? Date.now() - this.realAnchor : 0;
+    const reps: Record<string, number> = {};
+    for (const [k, v] of this.reps) reps[k] = v;
     saveSession({
       config: this.config,
       phaseIndex: s.phaseIndex,
       elapsedMs: s.elapsedMs,
       realElapsedMs: this.realElapsedMs + realExtra,
+      reps,
       savedAt: Date.now(),
     });
   }

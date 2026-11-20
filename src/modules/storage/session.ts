@@ -10,6 +10,11 @@ export interface SavedSession {
   elapsedMs: number;
   /** Durée réelle déjà passée dans la séance (hors pauses), en ms. */
   realElapsedMs: number;
+  /**
+   * Reps saisies, par round. Clé : normalisation du nom d'exercice + round,
+   * pour que les données suivent l'exercice même si le cycle change.
+   */
+  reps?: Record<string, number>;
   savedAt: number;
 }
 

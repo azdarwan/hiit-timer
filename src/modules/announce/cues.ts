@@ -1,4 +1,5 @@
 import type { Lang } from '../../types';
+import { DEFAULT_SETTINGS } from '../../types';
 import type { Phase } from '../workout/plan';
 import { phaseOffsets } from '../workout/plan';
 
@@ -36,21 +37,26 @@ const STRINGS: Record<Lang, Record<string, string>> = {
  * Règles :
  * - début de préparation : "Prépare-toi"
  * - 3 dernières secondes de chaque phase >= 4 s : "3", "2", "1" + bip
- * - transition vers un travail : "Go !" (précédé de "Round X" si nouveau round)
+ * - repos long : décompte étendu (par défaut 10 s avant la fin), paramétrable
+ * - transition vers un travail : "Go !" (précédé de "Round X" si nouveau round).
+ *   "Round X" est donc prononcé à la FIN du repos long, pas à son début.
  * - moitié d'un travail >= 12 s : "Moitié"
  * - transition vers un repos : "Repos"
- * - transition vers un repos long : "Round X" (le round qui arrive)
  * - fin de séance : "Séance terminée, bravo !"
+ *
+ * `countdownSec` : durée du décompte de fin de repos long (0 = décompte
+ * standard 3-2-1). Coupé à `duration - 1` si le repos est plus court.
  */
-export function buildCues(phases: Phase[], lang: Lang): Cue[] {
+export function buildCues(phases: Phase[], lang: Lang, countdownSec: number = DEFAULT_SETTINGS.countdownSec): Cue[] {
   const s = STRINGS[lang];
   const offsets = phaseOffsets(phases);
   const cues: Cue[] = [];
 
-  const roundText = (n: number) => (lang === 'fr' ? `Round ${n}` : `Round ${n}`);
+  const roundText = (n: number) => `Round ${n}`;
 
   phases.forEach((phase, i) => {
     const at = offsets[i] * 1000;
+    const d = phase.duration;
     if (phase.type === 'prepare') {
       cues.push({ at, action: { say: s.prepare, beep: 'transition', vibrate: 100 } });
     } else if (phase.type === 'work') {
@@ -60,10 +66,22 @@ export function buildCues(phases: Phase[], lang: Lang): Cue[] {
     } else if (phase.type === 'rest') {
       cues.push({ at, action: { say: s.rest, beep: 'transition', vibrate: 80 } });
     } else if (phase.type === 'longRest') {
-      cues.push({ at, action: { say: roundText(phase.round), beep: 'transition', vibrate: 150 } });
+      // Pas de "Round X" à l'entrée du repos long : il est annoncé à la fin
+      // de la pause, juste avant le round qui arrive (backlog n°3).
+      cues.push({ at, action: { say: s.rest, beep: 'transition', vibrate: 150 } });
     }
 
-    const d = phase.duration;
+    if (phase.type === 'longRest') {
+      // Décompte étendu de fin de pause (backlog n°4) : remplace le 3-2-1.
+      const effective = Math.min(countdownSec, d - 1);
+      if (effective >= 4) {
+        for (let k = effective; k >= 1; k--) {
+          cues.push({ at: (offsets[i] + d - k) * 1000, action: { say: String(k), beep: k <= 3 ? 'tick' : undefined } });
+        }
+        return;
+      }
+    }
+
     if (d >= 4) {
       for (let k = 3; k >= 1; k--) {
         cues.push({ at: (offsets[i] + d - k) * 1000, action: { say: String(k), beep: 'tick' } });

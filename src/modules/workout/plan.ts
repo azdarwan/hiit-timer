@@ -1,4 +1,5 @@
 import type { WorkoutConfig } from '../../types';
+import { exercisesFor } from './exercises';
 
 export type PhaseType = 'prepare' | 'work' | 'rest' | 'longRest' | 'done';
 
@@ -12,22 +13,32 @@ export interface Phase {
   exercise: number;
   /** Nombre d'exercices par round */
   exercisesInRound: number;
+  /** Nom de l'exercice concerné ('' pour les repos/préparation) */
+  exerciseName: string;
+  /** L'exercice concerné demande-t-il la saisie des reps ? */
+  countReps: boolean;
 }
 
 export function buildPhases(config: WorkoutConfig): Phase[] {
+  const defs = exercisesFor(config);
   const phases: Phase[] = [];
   if (config.prepare > 0) {
-    phases.push({ type: 'prepare', duration: config.prepare, round: 1, exercise: 0, exercisesInRound: config.exercises });
+    phases.push({ type: 'prepare', duration: config.prepare, round: 1, exercise: 0, exercisesInRound: config.exercises, exerciseName: '', countReps: false });
   }
   for (let r = 1; r <= config.rounds; r++) {
     for (let e = 1; e <= config.exercises; e++) {
-      phases.push({ type: 'work', duration: config.work, round: r, exercise: e, exercisesInRound: config.exercises });
+      const def = defs[e - 1];
+      phases.push({ type: 'work', duration: config.work, round: r, exercise: e, exercisesInRound: config.exercises, exerciseName: def.name, countReps: def.countReps });
       if (e < config.exercises && config.rest > 0) {
-        phases.push({ type: 'rest', duration: config.rest, round: r, exercise: e, exercisesInRound: config.exercises });
+        // Le repos porte le nom de l'exercice qu'il suit : c'est le moment
+        // où l'appli propose la saisie des reps de cet exercice.
+        phases.push({ type: 'rest', duration: config.rest, round: r, exercise: e, exercisesInRound: config.exercises, exerciseName: def.name, countReps: def.countReps });
       }
     }
     if (r < config.rounds && config.longRest > 0) {
-      phases.push({ type: 'longRest', duration: config.longRest, round: r + 1, exercise: 0, exercisesInRound: config.exercises });
+      // Le repos long suit le dernier exercice du round : même convention.
+      const last = defs[config.exercises - 1];
+      phases.push({ type: 'longRest', duration: config.longRest, round: r + 1, exercise: 0, exercisesInRound: config.exercises, exerciseName: last.name, countReps: last.countReps });
     }
   }
   return phases;

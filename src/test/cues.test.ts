@@ -28,24 +28,34 @@ describe('File d\'annonces pré-calculée', () => {
     // Décompte avant le premier repos : "Repos" à la transition (t=40 s)
     expect(says).toContainEqual({ at: 40000, say: 'Repos' });
 
-    // Repos long : annonce "Round 2" à l'entrée du repos long (t=600 s)
+    // Repos long : "Repos" à l'entrée (pas de "Round" à l'entrée)
     const longRestIndex = phases.findIndex((p) => p.type === 'longRest' && p.round === 2);
-    expect(says).toContainEqual({ at: offsets[longRestIndex] * 1000, say: 'Round 2' });
+    expect(says).toContainEqual({ at: offsets[longRestIndex] * 1000, say: 'Repos' });
     const longRestIndex3 = phases.findIndex((p) => p.type === 'longRest' && p.round === 3);
-    expect(says).toContainEqual({ at: offsets[longRestIndex3] * 1000, say: 'Round 3' });
+    expect(says).toContainEqual({ at: offsets[longRestIndex3] * 1000, say: 'Repos' });
+    expect(says.filter((s) => s.say === 'Round 2' || s.say === 'Round 3')).toHaveLength(0);
 
-    // Démarrage des rounds 2 et 3
-    const work2 = phases.findIndex((p) => p.type === 'work' && p.round === 2 && p.exercise === 1);
-    expect(says).toContainEqual({ at: offsets[work2] * 1000, say: 'Round 2. Go !' });
-    const work3 = phases.findIndex((p) => p.type === 'work' && p.round === 3 && p.exercise === 1);
-    expect(says).toContainEqual({ at: offsets[work3] * 1000, say: 'Round 3. Go !' });
+    // "Round X" est annoncé EN FIN de repos long, juste avant le round (n°3)
+    const longRestEnd = (offsets[longRestIndex] + 120) * 1000;
+    expect(says).toContainEqual({ at: longRestEnd, say: 'Round 2. Go !' });
+    const longRestEnd3 = (offsets[longRestIndex3] + 120) * 1000;
+    expect(says).toContainEqual({ at: longRestEnd3, say: 'Round 3. Go !' });
+
+    // Décompte étendu (10 s par défaut) avant la fin du repos long (n°4)
+    for (const idx of [longRestIndex, longRestIndex3]) {
+      const d = phases[idx].duration;
+      for (let k = 10; k >= 4; k--) {
+        expect(says).toContainEqual({ at: (offsets[idx] + d - k) * 1000, say: String(k) });
+      }
+    }
+    expect(says.filter((s) => s.say === '10')).toHaveLength(2);
 
     // Fin de séance à 2020 s
     expect(says).toContainEqual({ at: 2020000, say: 'Séance terminée, bravo !' });
 
-    // Comptages : 45 travaux -> 45 "Moitié" ; 42 repos -> 42 "Repos" ; 3 "Round X. Go !"
+    // Comptages : 45 travaux -> 45 "Moitié" ; 42 repos + 2 repos longs = 44 "Repos"
     expect(says.filter((s) => s.say === 'Moitié')).toHaveLength(45);
-    expect(says.filter((s) => s.say === 'Repos')).toHaveLength(42);
+    expect(says.filter((s) => s.say === 'Repos')).toHaveLength(44);
     expect(says.filter((s) => s.say === 'Round 1. Go !')).toHaveLength(1);
     expect(says.filter((s) => s.say === 'Round 2. Go !')).toHaveLength(1);
     expect(says.filter((s) => s.say === 'Round 3. Go !')).toHaveLength(1);
@@ -89,5 +99,22 @@ describe('File d\'annonces pré-calculée', () => {
     const says = buildCues(phases, 'en').map((c) => c.action.say);
     expect(says).toContain('Get ready');
     expect(says).toContain('Workout complete, well done !');
+  });
+
+  it('décompte standard 3-2-1 sur le repos long quand le décompte étendu est désactivé', () => {
+    const phases = buildPhases({ work: 20, rest: 5, exercises: 1, rounds: 2, longRest: 120, prepare: 0 });
+    const says = buildCues(phases, 'fr', 0).map((c) => c.action.say!);
+    expect(says).not.toContain('10');
+    const longRestIndex = phases.findIndex((p) => p.type === 'longRest');
+    expect(says).toContain('3');
+    expect(says).toContain('Repos');
+  });
+
+  it('coupe le décompte étendu si le repos long est trop court', () => {
+    const phases = buildPhases({ work: 20, rest: 5, exercises: 1, rounds: 2, longRest: 8, prepare: 0 });
+    const says = buildCues(phases, 'fr', 10).map((c) => c.action.say!);
+    expect(says).not.toContain('10');
+    expect(says).not.toContain('8');
+    expect(says).toContain('7'); // décompte à duration - 1
   });
 });

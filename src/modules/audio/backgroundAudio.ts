@@ -71,7 +71,8 @@ export class BackgroundAudio {
       if (!this.audio) {
         const a = new Audio(silentWavDataUri());
         a.loop = true;
-        a.playsInline = true;
+        // lecture inline iOS (attribut non typé par lib.dom, d'où setAttribute)
+        a.setAttribute('playsinline', 'true');
         a.setAttribute('webkit-playsinline', 'true');
         a.volume = 0.01; // pas « muted » : une lecture muette ne compte pas
         this.audio = a;

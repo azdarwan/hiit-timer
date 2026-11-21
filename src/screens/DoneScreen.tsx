@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { formatDuration } from '../modules/workout/plan';
 import { exercisesFor, normalizeName } from '../modules/workout/exercises';
 import { toCSV, downloadCSV, type RecordedSession, type SyncResult } from '../modules/storage/history';
+import type { Lang } from '../types';
+import { strings } from '../i18n';
 
 interface Props {
   realMs: number;
   totalMs: number;
+  lang: Lang;
   session: RecordedSession | null;
   syncResult: SyncResult | null;
   syncConfigured: boolean;
@@ -17,6 +20,7 @@ interface Props {
 
 export default function DoneScreen(props: Props) {
   const { session } = props;
+  const s = strings(props.lang);
   // Cellule sélectionnée du récap (steppers −/+ inline, spec 21/11/2026).
   const [editCell, setEditCell] = useState<{ name: string; round: number } | null>(null);
 
@@ -41,39 +45,37 @@ export default function DoneScreen(props: Props) {
 
   return (
     <div className="screen done">
-      <div className="done-title">Séance terminée</div>
-      <div className="done-sub">Bravo !</div>
+      <div className="done-title">{s.done.title}</div>
+      <div className="done-sub">{s.done.bravo}</div>
       <div className="done-stats">
         <div className="done-stat">
-          <span className="done-stat-label">Temps écoulé</span>
+          <span className="done-stat-label">{s.done.realTime}</span>
           <span className="done-stat-value">{formatDuration(props.realMs / 1000)}</span>
         </div>
         <div className="done-stat">
-          <span className="done-stat-label">Séance prévue</span>
+          <span className="done-stat-label">{s.done.plannedTime}</span>
           <span className="done-stat-value">{formatDuration(props.totalMs / 1000)}</span>
         </div>
         {session && session.kcal !== undefined && (
           <div className="done-stat">
-            <span className="done-stat-label">Calories (estimation)</span>
-            <span className="done-stat-value">{session.kcal} kcal</span>
+            <span className="done-stat-label">{s.done.calories}</span>
+            <span className="done-stat-value">{`${session.kcal} ${s.done.kcalUnit}`}</span>
           </div>
         )}
       </div>
 
       {defs.length > 0 && rounds > 0 && (
         <section className="section done-reps" data-testid="reps-recap">
-          <h2>Reps de la séance</h2>
-          <p className="section-hint">
-            Tout ce qui a été saisi pendant les pauses, corrigé au besoin avant de valider. « – » = non saisi.
-          </p>
+          <h2>{s.done.repsTitle}</h2>
+          <p className="section-hint">{s.done.repsHint}</p>
           <table className="recap-table">
             <thead>
               <tr>
-                <th aria-label="Exercice"></th>
+                <th aria-label={s.done.exerciseHeader}></th>
                 {Array.from({ length: rounds }, (_, i) => (
-                  <th key={i}>R{i + 1}</th>
+                  <th key={i}>{`R${i + 1}`}</th>
                 ))}
-                <th>Total</th>
+                <th>{s.done.total}</th>
               </tr>
             </thead>
             <tbody>
@@ -89,7 +91,7 @@ export default function DoneScreen(props: Props) {
                         <div className="reps-row">
                           <button
                             className="reps-btn"
-                            aria-label={`Moins de ${d.name} round ${round}`}
+                            aria-label={`${s.done.lessOf} ${d.name} ${round}`}
                             onClick={() => props.onSetReps(d.name, round, Math.max(0, value - 1))}
                           >
                             −
@@ -97,7 +99,7 @@ export default function DoneScreen(props: Props) {
                           <div className="reps-value">{value || ''}</div>
                           <button
                             className="reps-btn"
-                            aria-label={`Plus de ${d.name} round ${round}`}
+                            aria-label={`${s.done.plusOf} ${d.name} ${round}`}
                             onClick={() => props.onSetReps(d.name, round, value + 1)}
                           >
                             +
@@ -108,15 +110,15 @@ export default function DoneScreen(props: Props) {
                       <td className="recap-cell" key={round}>
                         <button
                           className="recap-tap"
-                          aria-label={`Reps de ${d.name} round ${round}`}
+                          aria-label={`${s.done.repsOf} ${d.name} ${round}`}
                           onClick={() => setEditCell({ name: d.name, round })}
                         >
-                          {value || '–'}
+                          {value || s.done.notEntered}
                         </button>
                       </td>
                     );
                   })}
-                  <td className="recap-total">{totalOf(d.name) || '–'}</td>
+                  <td className="recap-total">{totalOf(d.name) || s.done.notEntered}</td>
                 </tr>
               ))}
             </tbody>
@@ -126,26 +128,24 @@ export default function DoneScreen(props: Props) {
 
       {session && (
         <div className="done-actions">
-          <button className="btn ghost" onClick={exportSession}>Exporter CSV</button>
-          {props.syncConfigured && props.syncResult?.ok && (
-            <span className="sync-ok">Enregistré sur le serveur ✓</span>
-          )}
+          <button className="btn ghost" onClick={exportSession}>{s.done.exportCsv}</button>
+          {props.syncConfigured && props.syncResult?.ok && <span className="sync-ok">{s.done.syncOk}</span>}
           {props.syncConfigured && props.syncResult && !props.syncResult.ok && (
             <span className="sync-err">
-              Synchro échouée ({props.syncResult.error})
-              <button className="btn ghost small" onClick={props.onRetrySync}>Réessayer</button>
+              {`${s.done.syncFailed} (${props.syncResult.error})`}
+              <button className="btn ghost small" onClick={props.onRetrySync}>{s.done.retry}</button>
             </span>
           )}
           {props.syncConfigured && !props.syncResult && (
             <span className="sync-err">
-              Synchro à renvoyer (reps modifiées)
-              <button className="btn ghost small" onClick={props.onRetrySync}>Renvoyer</button>
+              {s.done.syncStale}
+              <button className="btn ghost small" onClick={props.onRetrySync}>{s.done.resend}</button>
             </span>
           )}
         </div>
       )}
 
-      <button className="btn primary big" onClick={props.onBack}>Valider la séance</button>
+      <button className="btn primary big" onClick={props.onBack}>{s.done.validate}</button>
     </div>
   );
 }

@@ -96,6 +96,30 @@ Le moteur ne compte **jamais** « 1 tick = 1 seconde ». Le temps écoulé est t
 
 La file d'annonces est **pré-calculée** au lancement de la séance (`buildCues`) à partir du déroulé : chaque annonce a un instant de déclenchement exact. L'AudioContext et la voix sont débloqués par l'appui sur **Start** (contrainte Safari/iOS). Pour remplacer le TTS par des MP3 enregistrés, écris une autre implémentation de `VoiceService` — rien d'autre ne bouge.
 
+### Internationalisation (i18n)
+
+Toutes les chaînes visibles (écrans, cues vocales, aria-labels) sont
+centralisées dans `src/i18n/` :
+
+- `fr.ts` : dictionnaire français **complet**, la référence ;
+- `en.ts` : surcharge **partielle** en anglais — toute clé absente retombe
+  automatiquement sur le français (fusion profonde dans `index.ts`) ;
+- `strings(lang)` renvoie le dictionnaire fusionné pour une langue, français
+  si la langue est inconnue.
+
+Règle de construction : **aucune nouvelle chaîne visible ne s'écrit en dur
+dans un écran**, tout passe par le dictionnaire (les interpolations —
+numéros de round, noms d'exercices — restent composées côté composant).
+Le réglage **Langue** pilote à la fois la voix et l'interface. L'anglais est
+partiel volontairement : on ne traduit que ce qu'un vrai locuteur relit,
+au moment où une audience non francophone est visée — le reste bascule
+proprement en français en attendant.
+
+Les **formats de données** (CSV, en-têtes `date;exercice;round;reps;...`,
+clés de stockage) restent en français : ce sont des formats stables, pas du
+texte d'interface.
+
+
 ## Tests
 
 ```bash
@@ -113,11 +137,12 @@ Couvre notamment :
 - pause puis reprise sans dérive (pause réelle chronométrée) ;
 - « Passer » à l'exercice 7/15 → repos suivant direct, annonces de la portion sautée supprimées ; rafale de « Passer » silencieuse (ni annonce ni bip à l'atterrissage, file vocale purgée), skip isolé inchangé ;
 - persistance favoris/session en localStorage ;
+- i18n : base fr complète, surcharge en (cues, boutons, session), repli français sur les clés absentes, surcharge sans clé étrangère ;
 - séance réelle de 5 s de contenu terminée avec < 100 ms d'écart.
 
 ## Réglages
 
-Langue de la voix (FR/EN), choix de la voix (les meilleures voix sont choisies automatiquement : Google, Natural/Premium, voix locales de qualité ; sélection manuelle possible), voix on/off, nom des exercices à voix haute (off par défaut), volume des bips, décompte de fin de pause en jalons (10 s par défaut, 0 = coupé), poids en kg (estimation des calories par la méthode MET, ±25-40 % sans fréquence cardiaque), garder l'écran allumé (par défaut, repli silencieux si non supporté), vibration sur les transitions, synchro serveur (URL + jeton). Réglages, configuration et favoris sont mémorisés entre deux ouvertures (localStorage).
+Langue (voix **et** interface, FR interface complète / EN partiel avec repli français), choix de la voix (les meilleures voix sont choisies automatiquement : Google, Natural/Premium, voix locales de qualité ; sélection manuelle possible), voix on/off, nom des exercices à voix haute (off par défaut), volume des bips, décompte de fin de pause en jalons (10 s par défaut, 0 = coupé), poids en kg (estimation des calories par la méthode MET, ±25-40 % sans fréquence cardiaque), garder l'écran allumé (par défaut, repli silencieux si non supporté), vibration sur les transitions, synchro serveur (URL + jeton). Réglages, configuration et favoris sont mémorisés entre deux ouvertures (localStorage).
 
 ## Validation des champs
 

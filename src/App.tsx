@@ -225,6 +225,7 @@ export default function App() {
       <SessionScreen
         snapshot={snapshot}
         config={config}
+        lang={settings.lang}
         reps={reps}
         onSetReps={(name, round, value) => {
           const controller = controllerRef.current;
@@ -246,6 +247,7 @@ export default function App() {
       <DoneScreen
         realMs={doneInfo.realMs}
         totalMs={doneInfo.totalMs}
+        lang={settings.lang}
         session={doneSession}
         syncResult={syncResult}
         syncConfigured={Boolean(settings.syncUrl)}

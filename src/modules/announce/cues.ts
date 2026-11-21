@@ -2,6 +2,7 @@ import type { Lang } from '../../types';
 import { DEFAULT_SETTINGS } from '../../types';
 import type { Phase } from '../workout/plan';
 import { phaseOffsets } from '../workout/plan';
+import { strings } from '../../i18n';
 
 export interface CueAction {
   say?: string;
@@ -14,23 +15,6 @@ export interface Cue {
   at: number;
   action: CueAction;
 }
-
-const STRINGS: Record<Lang, Record<string, string>> = {
-  fr: {
-    prepare: 'Prépare-toi',
-    go: 'Go !',
-    rest: 'Repos',
-    half: 'Moitié',
-    done: 'Séance terminée, bravo !',
-  },
-  en: {
-    prepare: 'Get ready',
-    go: 'Go !',
-    rest: 'Rest',
-    half: 'Halfway',
-    done: 'Workout complete, well done !',
-  },
-};
 
 /**
  * Pré-calcule la file complète des annonces d'une séance à partir du déroulé.
@@ -58,11 +42,10 @@ export function buildCues(
   countdownSec: number = DEFAULT_SETTINGS.countdownSec,
   sayExerciseNames: boolean = DEFAULT_SETTINGS.sayExerciseNames,
 ): Cue[] {
-  const s = STRINGS[lang];
+  const s = strings(lang).cues;
+  const roundText = (n: number) => `${strings(lang).session.round} ${n}`;
   const offsets = phaseOffsets(phases);
   const cues: Cue[] = [];
-
-  const roundText = (n: number) => `Round ${n}`;
 
   phases.forEach((phase, i) => {
     const at = offsets[i] * 1000;

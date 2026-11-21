@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import type { EngineSnapshot } from '../modules/timer/engine';
-import type { WorkoutConfig } from '../types';
+import type { WorkoutConfig, Lang } from '../types';
 import { exercisesFor, normalizeName } from '../modules/workout/exercises';
 import { formatDuration } from '../modules/workout/plan';
+import { strings } from '../i18n';
+import type { Strings } from '../i18n';
 
 interface Props {
   snapshot: EngineSnapshot;
   config: WorkoutConfig;
+  /** Langue des libellés et annonces (réglage unique). */
+  lang: Lang;
   /** Reps saisies, clé "round:nom normalisé" */
   reps: Record<string, number>;
   onSetReps: (name: string, round: number, value: number) => void;
@@ -17,29 +21,30 @@ interface Props {
   simSpeed: number;
 }
 
-function phaseLabel(snapshot: EngineSnapshot, defs: { name: string }[]): string {
+function phaseLabel(snapshot: EngineSnapshot, defs: { name: string }[], s: Strings['session']): string {
   const p = snapshot.phase;
   switch (p.type) {
     case 'prepare':
-      return 'Préparation';
+      return s.preparation;
     case 'work':
       // Numéro + nom de l'exercice en cours, bien visibles (spec 21/11).
       return p.exerciseName
-        ? `Exercice ${p.exercise}/${p.exercisesInRound} · ${p.exerciseName}`
-        : `Exercice ${p.exercise}/${p.exercisesInRound}`;
+        ? `${s.exercise} ${p.exercise}/${p.exercisesInRound} · ${p.exerciseName}`
+        : `${s.exercise} ${p.exercise}/${p.exercisesInRound}`;
     case 'rest':
       // Nom de l'exercice qui arrive (spec 21/11) : un repos n'existe
       // qu'entre deux exercices, le suivant est defs[p.exercise] (0-based).
-      return p.exercise < defs.length ? `Repos · à suivre : ${defs[p.exercise].name}` : 'Repos';
+      return p.exercise < defs.length ? `${s.rest} · ${s.upNext} ${defs[p.exercise].name}` : s.rest;
     case 'longRest':
-      return 'Repos long';
+      return s.longRest;
     case 'done':
-      return 'Terminé';
+      return s.finished;
   }
 }
 
 export default function SessionScreen(props: Props) {
   const { snapshot } = props;
+  const s = strings(props.lang);
   const [confirmExit, setConfirmExit] = useState(false);
   const paused = !snapshot.running && !snapshot.finished;
   const remainingSec = Math.ceil(snapshot.remainingMs / 1000);
@@ -61,10 +66,10 @@ export default function SessionScreen(props: Props) {
       {props.simSpeed !== 1 && <div className="sim-badge">SIM ×{props.simSpeed}</div>}
 
       <div className="session-round">
-        Round {snapshot.phase.round}/{props.config.rounds}
+        {`${s.session.round} ${snapshot.phase.round}/${props.config.rounds}`}
       </div>
 
-      <div className="session-phase-label">{phaseLabel(snapshot, defs)}</div>
+      <div className="session-phase-label">{phaseLabel(snapshot, defs, s.session)}</div>
 
       <div className="session-clock">{formatDuration(remainingSec)}</div>
 
@@ -74,19 +79,23 @@ export default function SessionScreen(props: Props) {
 
       {finishedRound > 0 && repDefs.length > 0 && (
         <div className="reps-input" data-testid="reps-input">
-          <div className="reps-title">Reps du round {finishedRound}</div>
+          <div className="reps-title">{`${s.session.repsOfRound} ${finishedRound}`}</div>
           <ul className="reps-list">
             {repDefs.map((def) => {
               const value = props.reps[`${finishedRound}:${normalizeName(def.name)}`] ?? 0;
               return (
                 <li className="reps-item" key={def.name}>
                   <span className="reps-label">
-                    {def.name} <span className="reps-round">(R{finishedRound})</span>
+                    {def.name}{' '}
+                    <span className="reps-round">
+                      ({s.session.roundShort}
+                      {finishedRound})
+                    </span>
                   </span>
                   <div className="reps-row">
                     <button
                       className="reps-btn"
-                      aria-label={`Moins de ${def.name}`}
+                      aria-label={`${s.session.lessOf} ${def.name}`}
                       onClick={() => props.onSetReps(def.name, finishedRound, Math.max(0, value - 1))}
                     >
                       −
@@ -94,7 +103,7 @@ export default function SessionScreen(props: Props) {
                     <div className="reps-value">{value || ''}</div>
                     <button
                       className="reps-btn"
-                      aria-label={`Plus de ${def.name}`}
+                      aria-label={`${s.session.plusOf} ${def.name}`}
                       onClick={() => props.onSetReps(def.name, finishedRound, value + 1)}
                     >
                       +
@@ -108,30 +117,42 @@ export default function SessionScreen(props: Props) {
       )}
 
       <div className="session-total">
-        Restant&nbsp;: {formatDuration(Math.ceil(snapshot.totalRemainingMs / 1000))}
+        {s.session.remaining} {formatDuration(Math.ceil(snapshot.totalRemainingMs / 1000))}
       </div>
 
       <div className="session-controls">
         {paused ? (
-          <button className="btn primary big" onClick={props.onResume}>Reprendre</button>
+          <button className="btn primary big" onClick={props.onResume}>
+            {s.common.resume}
+          </button>
         ) : (
-          <button className="btn primary big" onClick={props.onPause}>Pause</button>
+          <button className="btn primary big" onClick={props.onPause}>
+            {s.common.pause}
+          </button>
         )}
         <div className="controls-row">
-          <button className="btn ghost big" onClick={props.onSkip}>Passer</button>
-          <button className="btn danger big" onClick={() => setConfirmExit(true)}>Terminer</button>
+          <button className="btn ghost big" onClick={props.onSkip}>
+            {s.common.skip}
+          </button>
+          <button className="btn danger big" onClick={() => setConfirmExit(true)}>
+            {s.common.finish}
+          </button>
         </div>
       </div>
 
-      {paused && <div className="paused-hint">En pause</div>}
+      {paused && <div className="paused-hint">{s.session.paused}</div>}
 
       {confirmExit && (
         <div className="overlay">
           <div className="overlay-card">
-            <p>Terminer la séance maintenant&nbsp;?</p>
+            <p>{s.session.exitConfirm}</p>
             <div className="overlay-actions">
-              <button className="btn danger" onClick={props.onExit}>Terminer</button>
-              <button className="btn ghost" onClick={() => setConfirmExit(false)}>Annuler</button>
+              <button className="btn danger" onClick={props.onExit}>
+                {s.common.finish}
+              </button>
+              <button className="btn ghost" onClick={() => setConfirmExit(false)}>
+                {s.common.cancel}
+              </button>
             </div>
           </div>
         </div>

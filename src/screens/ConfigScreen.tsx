@@ -7,6 +7,8 @@ import type { SavedSession } from '../modules/storage/session';
 import { listSessions, clearHistory, toCSV, downloadCSV } from '../modules/storage/history';
 import type { VoiceOption } from '../modules/voice/VoiceService';
 import { useState } from 'react';
+import { strings } from '../i18n';
+import type { Strings } from '../i18n';
 
 interface Props {
   config: WorkoutConfig;
@@ -22,18 +24,25 @@ interface Props {
   onDiscardSaved: () => void;
 }
 
-const FIELDS: { key: keyof WorkoutConfig; label: string; unit: string }[] = [
-  { key: 'work', label: 'Travail', unit: 's' },
-  { key: 'rest', label: 'Repos', unit: 's' },
-  { key: 'exercises', label: 'Exercices', unit: '' },
-  { key: 'rounds', label: 'Rounds', unit: '' },
-  { key: 'longRest', label: 'Repos long', unit: 's' },
-  { key: 'prepare', label: 'Préparation', unit: 's' },
+/**
+ * Champs de config : les libellés viennent du dictionnaire i18n (clé = même
+ * nom que le champ de WorkoutConfig), seule l'unité reste locale (format
+ * de donnée, pas texte visible traduisible).
+ */
+const FIELDS: { key: keyof WorkoutConfig & keyof Strings['config']['fields']; unit: string }[] = [
+  { key: 'work', unit: 's' },
+  { key: 'rest', unit: 's' },
+  { key: 'exercises', unit: '' },
+  { key: 'rounds', unit: '' },
+  { key: 'longRest', unit: 's' },
+  { key: 'prepare', unit: 's' },
 ];
 
 export default function ConfigScreen(props: Props) {
   const { config, onConfigChange, settings, onSettingsChange, favorites, voices } = props;
   const [historyCount, setHistoryCount] = useState(() => listSessions().length);
+  const s = strings(settings.lang);
+  const c = s.config;
   const total = totalDuration(config);
   const defs = exercisesFor(config);
 
@@ -45,7 +54,7 @@ export default function ConfigScreen(props: Props) {
 
   /** Met à jour la définition d'un exercice (nom ou comptage de reps). */
   const setExercise = (index: number, patch: Partial<{ name: string; countReps: boolean }>) => {
-    const next = defs.map((d, i) => (i === index ? { ...d, ...patch } : { ...d }));
+    const next = defs.map((d, i) => (i === index ? { ...d, ...patch } : d));
     onConfigChange({ ...config, exerciseDefs: next });
   };
 
@@ -81,7 +90,7 @@ export default function ConfigScreen(props: Props) {
   };
 
   const wipeHistory = () => {
-    if (window.confirm('Effacer tout l\'historique des séances enregistrées ?')) {
+    if (window.confirm(c.wipeConfirm)) {
       clearHistory();
       setHistoryCount(0);
     }
@@ -91,31 +100,32 @@ export default function ConfigScreen(props: Props) {
     <div className="screen config">
       {props.savedSession && (
         <div className="resume-banner">
-          <div className="resume-text">Séance en cours (pause)</div>
+          <div className="resume-text">{c.sessionInProgress}</div>
           <div className="resume-actions">
-            <button className="btn primary" onClick={props.onResumeSaved}>Reprendre</button>
-            <button className="btn ghost" onClick={props.onDiscardSaved}>Ignorer</button>
+            <button className="btn primary" onClick={props.onResumeSaved}>{s.common.resume}</button>
+            <button className="btn ghost" onClick={props.onDiscardSaved}>{s.common.ignore}</button>
           </div>
         </div>
       )}
 
       <div className="total-duration">
-        <div className="total-label">Durée totale</div>
+        <div className="total-label">{c.totalDuration}</div>
         <div className="total-value">{formatDuration(total)}</div>
       </div>
 
       <div className="fields">
         {FIELDS.map((f) => {
           const { min, step } = CONFIG_LIMITS[f.key as keyof typeof CONFIG_LIMITS];
+          const label = c.fields[f.key];
           const value = config[f.key] as number;
           return (
             <div className="stepper" key={f.key}>
               <div className="stepper-label">
-                {f.label}
+                {label}
                 {f.unit && <span className="stepper-unit"> ({f.unit})</span>}
               </div>
               <div className="stepper-row">
-                <button className="step-btn" onClick={() => setField(f.key, value - step)} aria-label={`Moins ${f.label}`}>
+                <button className="step-btn" onClick={() => setField(f.key, value - step)} aria-label={`${c.less} ${label}`}>
                   −
                 </button>
                 <input
@@ -126,7 +136,7 @@ export default function ConfigScreen(props: Props) {
                   value={value}
                   onChange={(e) => setField(f.key, Number(e.target.value))}
                 />
-                <button className="step-btn" onClick={() => setField(f.key, value + step)} aria-label={`Plus ${f.label}`}>
+                <button className="step-btn" onClick={() => setField(f.key, value + step)} aria-label={`${c.plus} ${label}`}>
                   +
                 </button>
               </div>
@@ -136,17 +146,12 @@ export default function ConfigScreen(props: Props) {
       </div>
 
       <button className="btn primary start-btn" onClick={props.onStart}>
-        Start
+        {s.common.start}
       </button>
 
       <section className="section">
-        <h2>Exercices &amp; reps</h2>
-        <p className="section-hint">
-          Le comptage est demandé pendant la pause longue, à la fin de chaque
-          round ; l'écran de fin montre le récapitulatif complet de la séance,
-          corrigible avant validation. Les données suivent le nom : si tu
-          changes d'exercice dans le cycle, l'historique reste comparable.
-        </p>
+        <h2>{c.exercisesRepsTitle}</h2>
+        <p className="section-hint">{c.exercisesRepsHint}</p>
         <ul className="exercise-list">
           {defs.map((def, i) => (
             <li className="exercise-row" key={i}>
@@ -156,17 +161,17 @@ export default function ConfigScreen(props: Props) {
                 type="text"
                 value={def.name}
                 maxLength={30}
-                aria-label={`Nom de l'exercice ${i + 1}`}
+                aria-label={`${c.exerciseName} ${i + 1}`}
                 onChange={(e) => setExercise(i, { name: e.target.value })}
               />
               <label className="exercise-reps">
                 <input
                   type="checkbox"
                   checked={def.countReps}
-                  aria-label={`Compter les reps : ${def.name}`}
+                  aria-label={`${c.countReps} ${def.name}`}
                   onChange={(e) => setExercise(i, { countReps: e.target.checked })}
                 />
-                reps
+                {c.reps}
               </label>
             </li>
           ))}
@@ -174,7 +179,7 @@ export default function ConfigScreen(props: Props) {
       </section>
 
       <section className="section">
-        <h2>Favoris</h2>
+        <h2>{c.favorites}</h2>
         <form
           className="fav-form"
           onSubmit={(e) => {
@@ -186,8 +191,8 @@ export default function ConfigScreen(props: Props) {
             }
           }}
         >
-          <input className="fav-input" name="favName" placeholder="Nom de la séance" maxLength={40} />
-          <button className="btn ghost" type="submit">Sauver</button>
+          <input className="fav-input" name="favName" placeholder={c.favoriteNamePlaceholder} maxLength={40} />
+          <button className="btn ghost" type="submit">{s.common.save}</button>
         </form>
         <ul className="fav-list">
           {favorites.map((f) => (
@@ -200,9 +205,9 @@ export default function ConfigScreen(props: Props) {
               </button>
               <button
                 className="fav-delete"
-                aria-label={`Supprimer ${f.name}`}
+                aria-label={`${c.deleteFavoritePrefix} ${f.name}`}
                 onClick={() => {
-                  if (window.confirm(`Supprimer le favori « ${f.name} » ?`)) {
+                  if (window.confirm(`${c.deleteFavoritePrefix} « ${f.name} » ?`)) {
                     props.onFavoritesChange(favorites.filter((x) => x.name !== f.name));
                   }
                 }}
@@ -215,9 +220,9 @@ export default function ConfigScreen(props: Props) {
       </section>
 
       <section className="section">
-        <h2>Réglages</h2>
+        <h2>{c.settings}</h2>
         <label className="setting-row">
-          <span>Langue de la voix</span>
+          <span>{c.language}</span>
           <select
             value={settings.lang}
             onChange={(e) => onSettingsChange({ ...settings, lang: e.target.value as Settings['lang'] })}
@@ -228,12 +233,12 @@ export default function ConfigScreen(props: Props) {
         </label>
         {voices.length > 0 && (
           <label className="setting-row">
-            <span>Voix</span>
+            <span>{c.voice}</span>
             <select
               value={settings.voiceName ?? ''}
               onChange={(e) => onSettingsChange({ ...settings, voiceName: e.target.value || null })}
             >
-              <option value="">Choix automatique</option>
+              <option value="">{c.autoVoice}</option>
               {voices.map((v) => (
                 <option key={v.name} value={v.name}>{v.name}</option>
               ))}
@@ -241,7 +246,7 @@ export default function ConfigScreen(props: Props) {
           </label>
         )}
         <label className="setting-row">
-          <span>Annonces vocales</span>
+          <span>{c.voiceAnnouncements}</span>
           <input
             type="checkbox"
             checked={settings.voice}
@@ -249,7 +254,7 @@ export default function ConfigScreen(props: Props) {
           />
         </label>
         <label className="setting-row">
-          <span>Nom des exercices à voix haute</span>
+          <span>{c.sayExerciseNames}</span>
           <input
             type="checkbox"
             checked={settings.sayExerciseNames}
@@ -257,7 +262,7 @@ export default function ConfigScreen(props: Props) {
           />
         </label>
         <label className="setting-row">
-          <span>Volume des bips</span>
+          <span>{c.beepVolume}</span>
           <input
             type="range"
             min={0}
@@ -268,9 +273,9 @@ export default function ConfigScreen(props: Props) {
           />
         </label>
         <div className="setting-row">
-          <span>Décompte de fin de pause</span>
+          <span>{c.countdownEndPause}</span>
           <div className="stepper-row setting-stepper">
-            <button className="step-btn" onClick={() => setCountdown(settings.countdownSec - COUNTDOWN_LIMITS.step)} aria-label="Moins de décompte">
+            <button className="step-btn" onClick={() => setCountdown(settings.countdownSec - COUNTDOWN_LIMITS.step)} aria-label={c.lessCountdown}>
               −
             </button>
             <input
@@ -282,19 +287,16 @@ export default function ConfigScreen(props: Props) {
               value={settings.countdownSec}
               onChange={(e) => setCountdown(Number(e.target.value))}
             />
-            <button className="step-btn" onClick={() => setCountdown(settings.countdownSec + COUNTDOWN_LIMITS.step)} aria-label="Plus de décompte">
+            <button className="step-btn" onClick={() => setCountdown(settings.countdownSec + COUNTDOWN_LIMITS.step)} aria-label={c.plusCountdown}>
               +
             </button>
           </div>
         </div>
-        <p className="section-hint">
-          Fin de pause longue en jalons : le nombre réglé, puis 10 s et 5 s
-          (si inférieurs), puis 3, 2, 1.
-        </p>
+        <p className="section-hint">{c.countdownHint}</p>
         <div className="setting-row">
-          <span>Poids (kg)</span>
+          <span>{c.weight}</span>
           <div className="stepper-row setting-stepper">
-            <button className="step-btn" onClick={() => setWeight(settings.weightKg - WEIGHT_LIMITS.step)} aria-label="Moins de poids">
+            <button className="step-btn" onClick={() => setWeight(settings.weightKg - WEIGHT_LIMITS.step)} aria-label={c.lessWeight}>
               −
             </button>
             <input
@@ -306,17 +308,14 @@ export default function ConfigScreen(props: Props) {
               value={settings.weightKg}
               onChange={(e) => setWeight(Number(e.target.value))}
             />
-            <button className="step-btn" onClick={() => setWeight(settings.weightKg + WEIGHT_LIMITS.step)} aria-label="Plus de poids">
+            <button className="step-btn" onClick={() => setWeight(settings.weightKg + WEIGHT_LIMITS.step)} aria-label={c.plusWeight}>
               +
             </button>
           </div>
         </div>
-        <p className="section-hint">
-          Sert uniquement à l'estimation des calories en fin de séance (méthode
-          MET, précision de l'ordre de ±25-40 % sans fréquence cardiaque).
-        </p>
+        <p className="section-hint">{c.weightHint}</p>
         <label className="setting-row">
-          <span>Garder l'écran allumé</span>
+          <span>{c.keepAwake}</span>
           <input
             type="checkbox"
             checked={settings.keepAwake}
@@ -324,7 +323,7 @@ export default function ConfigScreen(props: Props) {
           />
         </label>
         <label className="setting-row">
-          <span>Vibration</span>
+          <span>{c.vibrate}</span>
           <input
             type="checkbox"
             checked={settings.vibrate}
@@ -334,43 +333,41 @@ export default function ConfigScreen(props: Props) {
       </section>
 
       <section className="section">
-        <h2>Historique</h2>
+        <h2>{c.historyTitle}</h2>
         <p className="section-hint">
           {historyCount > 0
-            ? `${historyCount} séance${historyCount > 1 ? 's' : ''} enregistrée${historyCount > 1 ? 's' : ''} sur cet appareil.`
-            : 'Aucune séance enregistrée pour l\'instant.'}
+            ? `${historyCount} ${historyCount > 1 ? c.historyMany : c.historyOne}`
+            : c.historyNone}
         </p>
         <div className="history-actions">
           <button className="btn ghost" onClick={exportHistory} disabled={historyCount === 0}>
-            Exporter CSV
+            {c.historyExport}
           </button>
           <button className="btn ghost" onClick={wipeHistory} disabled={historyCount === 0}>
-            Vider
+            {c.historyWipe}
           </button>
         </div>
       </section>
 
       <section className="section">
-        <h2>Synchro serveur (optionnel)</h2>
-        <p className="section-hint">
-          Stocke chaque séance sur ton serveur (cf. dossier <code>server/</code> du dépôt, hébergement OVH).
-        </p>
+        <h2>{c.syncTitle}</h2>
+        <p className="section-hint">{c.syncHint}</p>
         <label className="setting-row">
-          <span>URL du serveur</span>
+          <span>{c.syncUrl}</span>
           <input
             type="url"
             className="sync-input"
-            placeholder="https://ton-domaine.tld/hiit/api.php"
+            placeholder={c.syncUrlPlaceholder}
             value={settings.syncUrl}
             onChange={(e) => onSettingsChange({ ...settings, syncUrl: e.target.value.trim() })}
           />
         </label>
         <label className="setting-row">
-          <span>Jeton</span>
+          <span>{c.syncToken}</span>
           <input
             type="text"
             className="sync-input"
-            placeholder="Jeton secret"
+            placeholder={c.syncTokenPlaceholder}
             value={settings.syncToken}
             onChange={(e) => onSettingsChange({ ...settings, syncToken: e.target.value.trim() })}
           />

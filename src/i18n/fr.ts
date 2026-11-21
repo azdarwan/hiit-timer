@@ -94,6 +94,7 @@ export const fr = {
     repsOfRound: 'Reps du round',
     roundShort: 'R',
     exitConfirm: 'Terminer la séance maintenant\u00A0?',
+    inProgressTitle: 'Séance en cours',
     lessOf: 'Moins de',
     plusOf: 'Plus de',
   },

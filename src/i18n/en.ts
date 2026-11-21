@@ -31,6 +31,7 @@ export const en: DeepPartial<Strings> = {
     rest: 'Rest',
     longRest: 'Long rest',
     paused: 'Paused',
+    inProgressTitle: 'Workout in progress',
     remaining: 'Remaining\u00A0:',
   },
 };

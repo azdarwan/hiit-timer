@@ -10,7 +10,9 @@ import { estimateCalories } from './modules/workout/calories';
 import { normalizeName } from './modules/workout/exercises';
 import { TtsVoiceService } from './modules/voice/VoiceService';
 import { BeepService } from './modules/audio/beeps';
+import { BackgroundAudio } from './modules/audio/backgroundAudio';
 import { WakeLockManager } from './modules/wakelock/wakelock';
+import { strings } from './i18n';
 import { SessionController } from './controller/SessionController';
 import ConfigScreen from './screens/ConfigScreen';
 import SessionScreen from './screens/SessionScreen';
@@ -55,6 +57,7 @@ export default function App() {
   const controllerRef = useRef<SessionController | null>(null);
   const voiceRef = useRef(new TtsVoiceService());
   const beepsRef = useRef(new BeepService());
+  const bgAudioRef = useRef(new BackgroundAudio());
   const wakeLockRef = useRef(new WakeLockManager());
   const simSpeed = useRef(readSimSpeed()).current;
 
@@ -81,8 +84,12 @@ export default function App() {
 
   // Le timer ne se met JAMAIS en pause quand l'appli passe en arrière-plan
   // (backlog n°5) : le moteur est ancré sur des timestamps réels, il reste
-  // exact ; les annonces manquées sont sautées au retour (SessionController).
-  // On ré-acquiert simplement le wake lock au retour sur l'appli.
+  // exact. La session audio de lecture (BackgroundAudio, lancée au clic
+  // Start) garde l'appli vivante en arrière-plan, à la manière d'une
+  // musique : bips et annonces continuent. Si l'OS fige quand même tout,
+  // l'arriéré d'annonces est rattrapé au premier tick de retour en une
+  // seule annonce d'état, pas une rafale (SessionController). On
+  // ré-acquiert simplement le wake lock au retour sur l'appli.
   useEffect(() => {
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
@@ -128,6 +135,9 @@ export default function App() {
     voiceRef.current.setLang(settings.lang);
     voiceRef.current.setVoiceName(settings.voiceName);
     voiceRef.current.setEnabled(settings.voice);
+    // Session audio « playback » : garde l'appli vivante en arrière-plan
+    // (doit partir d'un geste utilisateur, cf. backgroundAudio.ts).
+    bgAudioRef.current.start(strings(settings.lang).session.inProgressTitle);
   }, [settings]);
 
   const recordSession = useCallback(
@@ -156,6 +166,7 @@ export default function App() {
     const controller = createController((realMs, totalMs, repRecords) => {
       recordSession(realMs, totalMs, repRecords);
       setDoneInfo({ realMs, totalMs });
+      bgAudioRef.current.stop();
       setScreen('done');
     });
     controllerRef.current = controller;
@@ -172,6 +183,7 @@ export default function App() {
     const controller = createController((realMs, totalMs, repRecords) => {
       recordSession(realMs, totalMs, repRecords);
       setDoneInfo({ realMs, totalMs });
+      bgAudioRef.current.stop();
       setScreen('done');
     });
     controllerRef.current = controller;
@@ -188,6 +200,7 @@ export default function App() {
   const exitSession = useCallback(() => {
     controllerRef.current?.terminate();
     controllerRef.current = null;
+    bgAudioRef.current.stop();
     setSnapshot(null);
     setSavedSession(null);
     setScreen('config');

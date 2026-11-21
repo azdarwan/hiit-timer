@@ -9,7 +9,7 @@ Minuteur HIIT (High Intensity Interval Training) — PWA installable, **100 % ho
 - Annonces vocales (TTS navigateur, FR/EN) et bips Web Audio (aucun fichier son)
 - Pause / Passer / Terminer, reprise après fermeture de l'appli
 - « Passer » en rafale = silencieux : pas d'annonce d'atterrissage quand on enchaîne les skips (< 2 s), la file vocale est purgée ; un skip isolé garde son annonce
-- **Le timer ne se met jamais en pause** quand tu changes d'appli ou discutes avec un agent : le moteur à timestamps rattrape le temps réel ; les annonces manquées ne sont pas rejouées en rafale
+- **Le timer ne se met jamais en pause** quand tu changes d'appli ou verrouilles : le moteur à timestamps rattrape le temps réel. Depuis le fix point 5 : une session audio de lecture (ardoise silencieuse bouclée, `BackgroundAudio`) garde l'appli vivante en arrière-plan comme une musique, et les annonces dues pendant un gel total sont rattrapées au retour en une seule annonce d'état, jamais en rafale
 - « Round X » annoncé à la **fin** du repos long, décompte de fin de pause **en jalons** : le réglage (0-30 s), puis 10 s et 5 s, puis 3-2-1
 - Numéro + nom de l'exercice affichés en grand pendant le travail, exercice suivant affiché pendant le repos ; option « nom des exercices à voix haute »
 - Screen Wake Lock pendant la séance, vibration sur les transitions
@@ -52,7 +52,7 @@ Ajoute `?sim=<facteur>` à l'URL pour accélérer l'horloge virtuelle de la séa
 http://localhost:5173/?sim=60
 ```
 
-Avec `?sim=60`, une séance de 33:40 se déroule en ~34 s réelles : toutes les annonces vocales, bips, transitions et écrans s'exécutent exactement comme en vrai. Un badge « SIM ×60 » s'affiche pendant la séance. Sans le paramètre, horloge réelle.
+Avec `?sim=60`, une séance de 33:40 se déroule en ~34 s réelles : toutes les annonces vocales, bips, transitions et écrans s'exécutent exactement comme en vrai. Un badge « SIM ×60 » s'affiche pendant la séance. Sans le paramètre, horloge réelle. Au-delà de ×10, les pumps s'éloignent de plus de 1,5 s d'horloge virtuelle : comme après un gel d'arrière-plan, seules les annonces d'état sont jouées (jamais de rafale);
 
 ## Architecture
 
@@ -67,9 +67,10 @@ src/
 │   ├── announce/cues.ts         # file d'annonces pré-calculée (round en fin de pause, décompte)
 │   ├── voice/VoiceService.ts    # interface VoiceService + TTS (remplaçable par des MP3)
 │   ├── audio/beeps.ts           # bips Web Audio (aucun fichier son)
+│   ├── audio/backgroundAudio.ts # session de lecture arrière-plan (boucle silencieuse, point 5)
 │   ├── wakelock/wakelock.ts     # Screen Wake Lock, repli silencieux
 │   └── storage/                 # réglages, favoris, séance en cours, historique CSV (localStorage)
-├── controller/SessionController.ts  # relie moteur, annonces, voix, bips, wake lock, reps, persistance
+├── controller/SessionController.ts  # relie moteur, annonces, voix, bips, wake lock, reps, persistance, rattrapage arrière-plan
 ├── screens/                     # ConfigScreen, SessionScreen, DoneScreen
 └── test/                         # tests vitest
 server/                           # mini-API PHP (OVH) : stockage des séances, export JSON/CSV
@@ -95,6 +96,8 @@ Le moteur ne compte **jamais** « 1 tick = 1 seconde ». Le temps écoulé est t
 ### Annonces
 
 La file d'annonces est **pré-calculée** au lancement de la séance (`buildCues`) à partir du déroulé : chaque annonce a un instant de déclenchement exact. L'AudioContext et la voix sont débloqués par l'appui sur **Start** (contrainte Safari/iOS). Pour remplacer le TTS par des MP3 enregistrés, écris une autre implémentation de `VoiceService` — rien d'autre ne bouge.
+
+**Son en arrière-plan (point 5)** : au clic **Start**, une boucle silencieuse (`src/modules/audio/backgroundAudio.ts`, WAV inaudible, pas muted) démarre une session audio de lecture. Sur iOS 16.4+ en PPA installée (écran d'accueil), l'appli continue de tourner tant qu'elle « lit du son », comme une musique : timer, bips et annonces vivent en arrière-plan, et `mediaSession` signale l'état à l'OS. Si l'OS fige quand même tout (gel total), le premier tick de retour joue une seule annonce d'état, pas une rafale. Repli identifié à valider sur iPhone réel : si le TTS reste coupé par l'OS en arrière-plan, les bips (Web Audio) distinguent les transitions et la voix parle au retour.
 
 ### Internationalisation (i18n)
 
@@ -133,7 +136,7 @@ Couvre notamment :
 - noms des exercices portés par les phases (travail, repos, repos long) et compatibilité avec les anciennes configs sans définitions ;
 - toutes les annonces du tableau au bon instant sur la séance par défaut complète (horloge virtuelle déterministe), « Round X » à la fin du repos long, décompte en jalons (D=15 → 15, 10, 5, 3-2-1 et sa coupure sur un repos long trop court) ;
 - historique : stockage par jour (sans heure), CSV Excel fr avec ligne résumé + lignes par exercice/round ;
-- session en cours : reps persistées à la pause, restituées à la reprise, annonces manquées en arrière-plan sautées sans rafale ;
+- session en cours : reps persistées à la pause, restituées à la reprise ; arrière-plan : l'écart entre deux pumps détecte un gel total (seuil 1,5 s), l'arriéré n'est jamais rejeté en rafale : purge de la file vocale puis annonce d'état (la plus récente due), et en marche normale aucune annonce n'est consolidée ;
 - pause puis reprise sans dérive (pause réelle chronométrée) ;
 - « Passer » à l'exercice 7/15 → repos suivant direct, annonces de la portion sautée supprimées ; rafale de « Passer » silencieuse (ni annonce ni bip à l'atterrissage, file vocale purgée), skip isolé inchangé ;
 - persistance favoris/session en localStorage ;

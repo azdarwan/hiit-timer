@@ -26,13 +26,17 @@ export interface SessionControllerDeps {
 }
 
 const SAVE_INTERVAL_MS = 1000;
+
 /**
- * Annonces plus vieilles que cela au moment du tick : elles sont sautées.
- * Assez généreux pour couvrir le jitter des ticks et le mode simulation,
- * assez court pour ne pas rejouer en rafale ce qui a été manqué pendant
- * que l'appli était en arrière-plan.
+ * Écart d'horloge virtuelle entre deux pumps au-delà duquel on considère
+ * que l'appli a été figée (gel total de l'onglet en arrière-plan sans
+ * session audio, verrouillage brutal, etc.) : les annonces dues pendant
+ * le gel sont caduques, on n'en rejoue que la plus récente (spec du
+ * point 5, 20/11 : plus aucune annonce sautée, mais jamais de rafale).
+ * Une séance vivante pompe toutes les ~100 ms (écart 0,1 s), même en
+ * simulation ×10 (écart 1 s) : ce seuil ne l'attrape donc jamais.
  */
-const MISSED_CUE_GRACE_MS = 8000;
+const FROZEN_PUMP_GAP_MS = 1500;
 
 /**
  * Fenêtre de détection de rafale de « Passer » : deux skips à moins de 2 s
@@ -53,6 +57,8 @@ export class SessionController {
   private cueIndex = 0;
   /** Horloge du dernier « Passer » (détection de rafale). */
   private lastSkipClock: number | null = null;
+  /** Temps virtuel déjà pompé (détection de gel : écart entre deux pumps). */
+  private lastPumpedElapsedMs = 0;
   private config!: WorkoutConfig;
   private realElapsedMs = 0;
   private realAnchor = 0;
@@ -80,6 +86,7 @@ export class SessionController {
     this.engine.restore(saved.phaseIndex, saved.elapsedMs);
     this.cueIndex = this.cues.findIndex((c) => c.at > saved.elapsedMs + 1);
     if (this.cueIndex < 0) this.cueIndex = this.cues.length;
+    this.lastPumpedElapsedMs = saved.elapsedMs;
     this.realElapsedMs = saved.realElapsedMs;
     this.reps.clear();
     for (const [k, v] of Object.entries(saved.reps ?? {})) this.reps.set(k, v);
@@ -188,6 +195,7 @@ export class SessionController {
     this.phases = buildPhases(config);
     this.cues = buildCues(this.phases, this.deps.settings.lang, this.deps.settings.countdownSec, this.deps.settings.sayExerciseNames);
     this.cueIndex = 0;
+    this.lastPumpedElapsedMs = 0;
     this.finished = false;
     this.engine = new TimerEngine(
       this.phases,
@@ -215,17 +223,29 @@ export class SessionController {
   }
 
   /**
-   * Déclenche toutes les annonces dues. Une annonce trop tardive (séance
-   * passée en arrière-plan : l'appli tourne sans pause, cf. App.tsx) est
-   * sautée plutôt que rejouée en rafale au retour sur l'appli.
+   * Déclenche toutes les annonces dues, dans l'ordre (spec point 5 : une
+   * annonce due N'est JAMAIS sautée). Cas particulier d'un gel total de
+   * l'appli (écart entre deux pumps > FROZEN_PUMP_GAP_MS) : rejouer tout
+   * l'arriéré d'un coup serait une rafale caduque ; on purge la file
+   * vocale et on joue la plus récente, qui décrit l'état actuel de la
+   * séance (« 1 », « Repos », « Round 2. Go ! »…). En marche normale,
+   * chaque annonce part exactement à son instant.
    */
   private pumpAt(elapsedMs: number): void {
+    const frozenGap = elapsedMs - this.lastPumpedElapsedMs;
+    this.lastPumpedElapsedMs = elapsedMs;
+    const due: Cue[] = [];
     while (this.cueIndex < this.cues.length && this.cues[this.cueIndex].at <= elapsedMs + 1) {
-      const cue = this.cues[this.cueIndex];
+      due.push(this.cues[this.cueIndex]);
       this.cueIndex++;
-      if (cue.at < elapsedMs - MISSED_CUE_GRACE_MS) continue; // trop tard : on saute
-      this.fire(cue);
     }
+    if (due.length === 0) return;
+    if (due.length > 1 && frozenGap > FROZEN_PUMP_GAP_MS) {
+      this.deps.voice.cancel();
+      this.fire(due[due.length - 1]);
+      return;
+    }
+    for (const cue of due) this.fire(cue);
   }
 
   private fire(cue: Cue): void {

@@ -220,8 +220,8 @@ describe('SessionController', () => {
     controller.terminate();
   });
 
-  it('saute les annonces manquées quand l\'appli revient d\'arrière-plan', async () => {
-    const { voice, said } = makeVoice();
+  it('rattrape ce qui est dû au retour d\'arrière-plan : pas de rafale, l\'état actuel', async () => {
+    const { voice, said, cancels } = makeVoice();
     const { beeps } = makeBeeps();
     let virtual = 0;
     const config: WorkoutConfig = { work: 30, rest: 10, exercises: 2, rounds: 2, longRest: 120, prepare: 0 };
@@ -230,11 +230,34 @@ describe('SessionController', () => {
     virtual = 2_000;
     await new Promise((r) => setTimeout(r, 150));
     const before = said.length;
-    // 60 s en arrière-plan : pas de rafale d'annonces au retour
-    virtual += 60_000;
-    await new Promise((r) => setTimeout(r, 300));
-    expect(said.slice(before).join(',')).toBe('Moitié'); // seule annonce encore dans la grâce
+    // Gel total de l'onglet : l'horloge saute 67 s d'un coup (aucun tick
+    // pendant le gel), comme un premier tick de retour d'arrière-plan.
+    virtual = 69_000;
+    await new Promise((r) => setTimeout(r, 150));
+    // Spec point 5 : plus RIEN n'est sauté, mais rien n'est rejoué en
+    // rafale non plus : une seule annonce, la plus récente due (le « 1 »
+    // du décompte en cours), après purge de la file vocale.
+    expect(said.slice(before)).toEqual(['1']);
+    expect(cancels()).toBe(1);
     expect(controller.snapshot.finished).toBe(false);
+    controller.terminate();
+  });
+
+  it('pump rapproche (ecart faible) : toutes les annonces dues partent, aucune consolidation', async () => {
+    const { voice, said } = makeVoice();
+    const { beeps } = makeBeeps();
+    let virtual = 0;
+    // travail 30 s unique : 3-2-1 a 27, 28, 29 s
+    const config: WorkoutConfig = { work: 30, rest: 5, exercises: 1, rounds: 1, longRest: 0, prepare: 0 };
+    const controller = new SessionController({ voice, beeps, settings, wakeLock: null, clock: () => virtual });
+    controller.start(config);
+    virtual = 27_500; // pump 1 : « 3 » du
+    await new Promise((r) => setTimeout(r, 50));
+    virtual = 29_000; // pump 2 : ecart 1,5 s, pas un gel -> « 2 » et « 1 » partent TOUTES LES DEUX
+    await new Promise((r) => setTimeout(r, 50));
+    expect(said).toContain('3');
+    expect(said).toContain('2');
+    expect(said).toContain('1');
     controller.terminate();
   });
 });

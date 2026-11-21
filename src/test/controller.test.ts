@@ -247,15 +247,18 @@ describe('SessionController', () => {
     const { voice, said } = makeVoice();
     const { beeps } = makeBeeps();
     let virtual = 0;
-    // travail 30 s unique : 3-2-1 a 27, 28, 29 s
+    // travail 30 s unique : moitie a 15 s, 3-2-1 a 27, 28, 29 s
     const config: WorkoutConfig = { work: 30, rest: 5, exercises: 1, rounds: 1, longRest: 0, prepare: 0 };
     const controller = new SessionController({ voice, beeps, settings, wakeLock: null, clock: () => virtual });
     controller.start(config);
-    virtual = 27_500; // pump 1 : « 3 » du
-    await new Promise((r) => setTimeout(r, 50));
-    virtual = 29_000; // pump 2 : ecart 1,5 s, pas un gel -> « 2 » et « 1 » partent TOUTES LES DEUX
-    await new Promise((r) => setTimeout(r, 50));
+    // Pump 1 (ecart 27,5 s : detecte comme gel) : « Moitie » et « 3 » sont
+    // dues -> consolidation, seule la plus recente (« 3 ») part.
+    virtual = 27_500;
+    await new Promise((r) => setTimeout(r, 150));
     expect(said).toContain('3');
+    // Pump 2, ecart 1,5 s seulement : PAS un gel -> « 2 » et « 1 » partent TOUTES LES DEUX.
+    virtual = 28_999;
+    await new Promise((r) => setTimeout(r, 150));
     expect(said).toContain('2');
     expect(said).toContain('1');
     controller.terminate();

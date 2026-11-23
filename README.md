@@ -10,7 +10,7 @@ Minuteur HIIT (High Intensity Interval Training) — PWA installable, **100 % ho
 - Annonces vocales (TTS navigateur, FR/EN) et bips Web Audio (aucun fichier son)
 - Pause / Passer / Terminer, reprise après fermeture de l'appli
 - « Passer » en rafale = silencieux : pas d'annonce d'atterrissage quand on enchaîne les skips (< 2 s), la file vocale est purgée ; un skip isolé garde son annonce
-- **Le timer ne se met jamais en pause** quand tu changes d'appli ou verrouilles : le moteur à timestamps rattrape le temps réel. Depuis le fix point 5 : une session audio de lecture (ardoise silencieuse bouclée, `BackgroundAudio`) garde l'appli vivante en arrière-plan comme une musique, et les annonces dues pendant un gel total sont rattrapées au retour en une seule annonce d'état, jamais en rafale
+- **Le timer ne se met jamais en pause** quand tu changes d'appli ou verrouilles : le moteur à timestamps rattrape le temps réel. Depuis le fix point 5 : une session audio de lecture (ardoise silencieuse bouclée) garde l'appli vivante **en arrière-plan** ; au premier plan elle cède toujours la place (revenir sur l'appli ne coupe jamais ta musique), les bips cohabitent avec la musique (session mixable), et les annonces dues pendant un gel total sont rattrapées au retour en une seule annonce d'état, jamais en rafale
 - « Round X » annoncé à la **fin** du repos long, décompte de fin de pause **en jalons** : le réglage (0-30 s), puis 10 s et 5 s, puis 3-2-1
 - Numéro + nom de l'exercice affichés en grand pendant le travail, exercice suivant affiché pendant le repos ; option « nom des exercices à voix haute »
 - Screen Wake Lock pendant la séance, vibration sur les transitions
@@ -68,7 +68,7 @@ src/
 │   ├── announce/cues.ts         # file d'annonces pré-calculée (round en fin de pause, décompte)
 │   ├── voice/VoiceService.ts    # interface VoiceService + TTS (remplaçable par des MP3)
 │   ├── audio/beeps.ts           # bips Web Audio (aucun fichier son)
-│   ├── audio/backgroundAudio.ts # session de lecture arrière-plan (boucle silencieuse, point 5)
+│   ├── audio/backgroundAudio.ts # session de lecture arrière-plan uniquement, cohabite avec la musique
 │   ├── wakelock/wakelock.ts     # Screen Wake Lock, repli silencieux
 │   └── storage/                 # réglages, favoris, séance en cours, historique CSV (localStorage)
 ├── controller/SessionController.ts  # relie moteur, annonces, voix, bips, wake lock, reps, persistance, rattrapage arrière-plan
@@ -100,7 +100,7 @@ La file d'annonces est **pré-calculée** au lancement de la séance (`buildCues
 
 Vocabulaire vocal : « Repos » = repos court mid-round ; « **Fin du round, pause** » = entrée du repos long (décision du 23/11 : la fin d'un round doit s'entendre, le 3-2-1 qui précède est identique à celui d'un repos court) ; « Round X. Go ! » = fin du repos long, le numéro de round arrive juste avant le redémarrage, pas à l'entrée de la pause.
 
-**Son en arrière-plan (point 5)** : au clic **Start**, une boucle silencieuse (`src/modules/audio/backgroundAudio.ts`, WAV inaudible, pas muted) démarre une session audio de lecture. Sur iOS 16.4+ en PPA installée (écran d'accueil), l'appli continue de tourner tant qu'elle « lit du son », comme une musique : timer, bips et annonces vivent en arrière-plan, et `mediaSession` signale l'état à l'OS. Si l'OS fige quand même tout (gel total), le premier tick de retour joue une seule annonce d'état, pas une rafale. Repli identifié à valider sur iPhone réel : si le TTS reste coupé par l'OS en arrière-plan, les bips (Web Audio) distinguent les transitions et la voix parle au retour.
+**Son en arrière-plan et musique externe (point 5, revisité le 23/11)** : la session audio de lecture n'est active **qu'en arrière-plan** (`src/modules/audio/backgroundAudio.ts`). Son support est un WAV de silence numérique vrai (en PCM 8 bits le silence vaut 128 ; l'ancienne boucle écrivait des 0, soit un signal pleine échelle qui claquait à chaque tour de boucle sur iPhone). Le clic **Start** lance une lecture de déblocage (iOS exige un geste, lecture non muted), immédiatement relâchée : au premier plan, la session est toujours rendue, revenir sur l'appli ne réveille rien et **ne coupe pas Spotify**. En passant en arrière-plan pendant une séance, la boucle (re)part et l'appli vit comme une musique (timer, bips et annonces). Si une autre source audio a pris le relais (interruption OS détectée), l'appli **ne re-réclame jamais la session derrière elle** : la musique gagne, le timer reste exact et les annonces sont rattrapées au retour en une seule annonce d'état. Les bips Web Audio passent en session mixable (`navigator.audioSession.type = 'transient'`, Safari 16.4+) : ils cohabitent avec la musique. **Limite iOS irréductible** : le TTS (`speechSynthesis`) prend une session audio exclusive et ne peut PAS mixer avec la musique ; pour une séance avec musique, couper la voix (réglage), les bips et les vibrations restent. Repli identifié à valider sur iPhone réel : si le TTS reste coupé par l'OS en arrière-plan, les bips (Web Audio) distinguent les transitions et la voix parle au retour.
 
 ### Internationalisation (i18n)
 

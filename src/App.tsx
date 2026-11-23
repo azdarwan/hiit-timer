@@ -84,17 +84,18 @@ export default function App() {
 
   // Le timer ne se met JAMAIS en pause quand l'appli passe en arrière-plan
   // (backlog n°5) : le moteur est ancré sur des timestamps réels, il reste
-  // exact. La session audio de lecture (BackgroundAudio, lancée au clic
-  // Start) garde l'appli vivante en arrière-plan, à la manière d'une
-  // musique : bips et annonces continuent. Si l'OS fige quand même tout,
-  // l'arriéré d'annonces est rattrapé au premier tick de retour en une
-  // seule annonce d'état, pas une rafale (SessionController). On
-  // ré-acquiert simplement le wake lock au retour sur l'appli.
+  // exact. La session audio de lecture ne vit qu'en ARRIÈRE-PLAN
+  // (BackgroundAudio, cf. backgroundAudio.ts) : au premier plan elle cède
+  // toujours la place, revenir sur l'appli ne coupe jamais la musique de
+  // l'utilisateur. Si l'OS fige quand même tout (gel total), l'arriéré
+  // d'annonces est rattrapé au premier tick de retour en une seule
+  // annonce d'état, pas une rafale (SessionController). On ré-acquiert
+  // simplement le wake lock au retour sur l'appli.
   useEffect(() => {
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        wakeLockRef.current.reacquire();
-      }
+      const visible = document.visibilityState === 'visible';
+      if (visible) wakeLockRef.current.reacquire();
+      bgAudioRef.current.onAppVisibility(visible);
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => {

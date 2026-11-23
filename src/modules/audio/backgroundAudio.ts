@@ -1,24 +1,41 @@
 /**
- * Session audio « playback » (point 5 : son en arrière-plan, spec du 20/11).
+ * Session audio « playback » (point 5 : son en arrière-plan, revisitée le
+ * 23/11 pour cohabiter avec la musique de l'utilisateur).
  *
- * Une web app de l'écran d'accueil (iOS 16.4+) continue de tourner tant
- * qu'elle lit du son, comme une musique : du clic Start à la fin de la
- * séance, on lit en boucle un WAV silencieux, inaudible. Le <audio> NE doit
- * PAS être muted (iOS ignore les lectures muettes pour la session de
- * fond) et la lecture doit partir d'un geste utilisateur (Start), comme
- * le débroquage TTS/AudioContext.
+ * Principe : une PPA installée (iOS 16.4+) continue de tourner en
+ * arrière-plan tant qu'elle lit du son, comme une musique. On lit donc en
+ * boucle un WAV de silence NUMÉRIQUE VRAI, inaudible, depuis le geste
+ * Start (déblocage iOS : lecture non muted lancée d'un clic, l'élément
+ * reste ensuite rejouable sans geste).
  *
- * Effet attendu : timer, bips (Web Audio) et annonces TTS restent vivants
- * en arrière-plan. Si le TTS reste coupé par l'OS malgré tout (à tester
- * sur iPhone réel), repli prévu : bips en arrière-plan + voix au retour ;
- * voix garantie partout = appli native un jour.
+ * Cohabitation avec la musique (bugs du 23/11) :
+ * - Au PREMIER PLAN, la boucle est TOUJOURS en pause : revenir sur l'appli
+ *   ne réveille jamais la session de lecture et ne coupe pas Spotify.
+ *   L'appli vit naturellement au premier plan, la boucle ne sert à rien.
+ * - En ARRIÈRE-PLAN pendant une séance, la boucle (re)part pour garder
+ *   l'appli vivante (timer, bips et annonces vivent).
+ * - Si une AUTRE source audio (Spotify…) a pris le relais, détecté par
+ *   une pause de l'élément qu'on n'a pas provoquée (interruption OS), on
+ *   ne re-réclame plus la session derrière elle : sa musique gagne, le
+ *   timer reste exact (timestamps) et les annonces rattrapées au retour.
+ * - Les bips Web Audio passent en session mixable
+ *   (`navigator.audioSession.type = 'transient'`, Safari 16.4+) : ils
+ *   cohabitent avec la musique au lieu de la couper.
+ * - Limite iOS irréductible : le TTS (`speechSynthesis`) prend une
+ *   session audio exclusive, il ne peut PAS mixer avec la musique.
  */
 
 const WAV_SAMPLE_RATE = 8000;
 const WAV_SECONDS = 0.5;
 const WAV_SAMPLES = (WAV_SAMPLE_RATE * WAV_SECONDS) | 0;
 
-/** WAV mono 8 bits de silence total : 44 octets d'en-tête + échantillons à 0. */
+/**
+ * Silence numérique vrai : en PCM 8 bits, les échantillons sont NON
+ * SIGNÉS et le silence vaut 128 (0x80). Des zéros (bug du 23/11) = valeur
+ * -128 = signal constant PLEINE ÉCHELLE NÉGATIVE : invalide, il claquait
+ * à chaque couture de boucle sur iPhone (bruit en boucle dès le début de
+ * séance, qui s'emballe à la pause).
+ */
 export function buildSilentWav(): Uint8Array {
   const bytes = new Uint8Array(44 + WAV_SAMPLES);
   const dv = new DataView(bytes.buffer);
@@ -38,7 +55,7 @@ export function buildSilentWav(): Uint8Array {
   dv.setUint16(34, 8, true); // bits par échantillon
   ascii(36, 'data');
   dv.setUint32(40, WAV_SAMPLES, true);
-  // échantillons laissés à zéro : silence
+  bytes.fill(0x80, 44); // silence : 128 partout, PAS 0
   return bytes;
 }
 
@@ -55,69 +72,187 @@ export function silentWavDataUri(): string {
 }
 
 /**
- * Boucle silencieuse qui porte la session de lecture. Volontairement
- * distincte de BeepService : les bips sont du fond sonore ponctuel, ici
- * c'est un état de lecture continu, visible par l'OS, qui garde l'appli
- * vivante en arrière-plan.
+ * Élément audio minimal portant la boucle. Interface volontairement
+ * étroite (injection pour les tests ; <audio> en production), distincte de
+ * BeepService : ici c'est un état de lecture continu, pas un fond sonore.
+ */
+export interface LoopAudio {
+  loop: boolean;
+  volume: number;
+  paused: boolean;
+  play(): Promise<void>;
+  pause(): void;
+  setAttribute(name: string, value: string): void;
+  addPauseListener(listener: () => void): void;
+}
+
+export interface BackgroundAudioDeps {
+  createAudio?: () => LoopAudio | null;
+  isVisible?: () => boolean;
+  /** Type de session navigateur ('auto' | 'transient'...), absent hors Safari 16.4+. */
+  setAudioSessionType?: (type: string) => void;
+  /** mediaSession : absent hors navigateurs récents. */
+  setMediaSession?: (state: 'playing' | 'paused' | 'none', title: string) => void;
+}
+
+const createHtmlAudioLoop = (): LoopAudio | null => {
+  if (typeof Audio === 'undefined') return null;
+  const a = new Audio(silentWavDataUri());
+  const listeners: (() => void)[] = [];
+  a.addEventListener('pause', () => listeners.forEach((f) => f()));
+  return {
+    get loop() {
+      return true;
+    },
+    get volume() {
+      return a.volume;
+    },
+    set volume(v) {
+      a.volume = v;
+    },
+    get paused() {
+      return a.paused;
+    },
+    play: () => {
+      // HTMLMediaElement.play (Promise sur Safari moderne, undefined ailleurs)
+      const p = a.play() as unknown as Promise<void> | undefined;
+      return p ?? Promise.resolve();
+    },
+    pause: () => a.pause(),
+    setAttribute: (name, value) => a.setAttribute(name, value),
+    addPauseListener: (listener) => listeners.push(listener),
+  };
+};
+
+/**
+ * Machine à états de la session de lecture. Volontairement sans réglage :
+ * le comportement est déterministe (premier plan = silence de session,
+ * arrière-plan = claim SAUF si une autre source audio a pris le relais).
  */
 export class BackgroundAudio {
-  private audio: HTMLAudioElement | null = null;
-  private started = false;
+  private audio: LoopAudio | null = null;
+  /** Séance en cours (entre Start et fin/Sortie). */
+  private active = false;
+  /** Une autre source audio (Spotify…) a interrompu notre lecture : on ne re-réclame plus. */
+  private externalAudio = false;
+  /** Pause volontaire (les pauses OS, elles, marquent externalAudio). */
+  private selfPause = false;
+  private title = '';
+  private readonly isVisible: () => boolean;
+  private readonly setAudioSessionType: (type: string) => void;
+  private readonly setMediaSession: (state: 'playing' | 'paused' | 'none', title: string) => void;
+  private readonly createAudio: () => LoopAudio | null;
 
-  /** Démarre la session de lecture (idempotent). Doit suivre un clic. */
-  start(title: string): void {
-    try {
-      if (typeof Audio === 'undefined') return;
-      if (!this.audio) {
-        const a = new Audio(silentWavDataUri());
-        a.loop = true;
-        // lecture inline iOS (attribut non typé par lib.dom, d'où setAttribute)
-        a.setAttribute('playsinline', 'true');
-        a.setAttribute('webkit-playsinline', 'true');
-        a.volume = 0.01; // pas « muted » : une lecture muette ne compte pas
-        this.audio = a;
-      }
-      void this.audio.play().catch(() => {
-        // lecture refusée : l'appli vit quand même au premier plan
+  constructor(deps: BackgroundAudioDeps = {}) {
+    this.createAudio = deps.createAudio ?? createHtmlAudioLoop;
+    this.isVisible =
+      deps.isVisible ??
+      (() => (typeof document !== 'undefined' ? document.visibilityState !== 'hidden' : true));
+    this.setAudioSessionType =
+      deps.setAudioSessionType ??
+      ((type) => {
+        try {
+          const s = (navigator as unknown as { audioSession?: { type?: string } }).audioSession;
+          if (s) s.type = type;
+        } catch {
+          // silencieux : bonus mixage propre à Safari 16.4+
+        }
       });
-      this.started = true;
-      this.setMediaSession('playing', title);
-    } catch {
-      // silencieux : la session de fond est un bonus, pas une dépendance
-    }
-  }
-
-  /** Termine la session de lecture (fin de séance ou sortie). */
-  stop(): void {
-    try {
-      this.audio?.pause();
-      this.started = false;
-      this.setMediaSession('none', '');
-    } catch {
-      // silencieux
-    }
-  }
-
-  get playing(): boolean {
-    return this.started;
+    this.setMediaSession =
+      deps.setMediaSession ??
+      ((state, mediaTitle) => {
+        try {
+          if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+          if (state === 'playing') {
+            navigator.mediaSession.metadata = new MediaMetadata({
+              title: 'HIIT Timer',
+              artist: mediaTitle,
+            });
+          }
+          navigator.mediaSession.playbackState = state;
+        } catch {
+          // silencieux : la session de fond est un bonus, pas une dépendance
+        }
+      });
   }
 
   /**
-   * mediaSession : signale à l'OS « lecture en cours », ce qui aide iOS à
-   * traiter l'appli comme un lecteur (état affiché sur l'écran verrouillé).
+   * Démarre l'état de séance (idempotent). Doit suivre un clic : la
+   * lecture de déblocage part du geste Start, puis rend immédiatement la
+   * session si l'appli est au premier plan.
    */
-  private setMediaSession(state: 'playing' | 'none', title: string): void {
-    try {
-      if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
-      if (state === 'playing') {
-        navigator.mediaSession.metadata = new MediaMetadata({
-          title: 'HIIT Timer',
-          artist: title,
-        });
-      }
-      navigator.mediaSession.playbackState = state;
-    } catch {
-      // silencieux
+  start(title: string): void {
+    const audio = this.audio ?? this.createAudio();
+    if (!audio) return;
+    if (!this.audio) {
+      audio.setAttribute('playsinline', 'true');
+      audio.setAttribute('webkit-playsinline', 'true');
+      audio.volume = 0.01; // pas « muted » : une lecture muette ne compte pas
+      audio.addPauseListener(() => {
+        if (!this.selfPause) this.externalAudio = true;
+      });
+      this.audio = audio;
     }
+    this.active = true;
+    this.externalAudio = false;
+    this.title = title;
+    // Déblocage iOS : rejouable sans geste ensuite. L'élément « béni » est
+    // immédiatement remis en pause si l'appli est visible.
+    this.selfPause = false;
+    void audio
+      .play()
+      .then(() => {
+        if (!this.active || !this.audio) return;
+        if (this.isVisible()) this.suspendLoop();
+        else this.claimBackground();
+      })
+      .catch(() => {
+        // lecture refusée : l'appli vit quand même au premier plan
+      });
+  }
+
+  /** Termine l'état de séance (fin de séance ou sortie). */
+  stop(): void {
+    this.active = false;
+    this.suspendLoop();
+    this.setMediaSession('none', '');
+  }
+
+  /** À brancher sur visibilitychange pendant une séance (no-op sinon). */
+  onAppVisibility(visible: boolean): void {
+    if (!this.active || !this.audio) return;
+    if (visible) {
+      this.suspendLoop();
+    } else {
+      if (this.externalAudio) return; // une autre source joue : on ne lui vole pas la session
+      this.claimBackground();
+    }
+  }
+
+  /** Premier plan : boucle coupée, session mixable pour les bips. */
+  private suspendLoop(): void {
+    if (this.audio && !this.audio.paused) {
+      this.selfPause = true;
+      try {
+        this.audio.pause();
+      } catch {
+        // silencieux
+      } finally {
+        this.selfPause = false;
+      }
+      this.setMediaSession('paused', this.title);
+    }
+    this.setAudioSessionType('transient');
+  }
+
+  /** Arrière-plan : (re)prise de la session de lecture pour rester vivant. */
+  private claimBackground(): void {
+    if (!this.audio || !this.audio.paused) return;
+    this.setAudioSessionType('auto');
+    this.selfPause = false;
+    void this.audio.play().catch(() => {
+      // claim refusé (politique de lecture) : rattrapage au retour
+    });
+    this.setMediaSession('playing', this.title);
   }
 }

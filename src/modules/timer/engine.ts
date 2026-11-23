@@ -45,6 +45,8 @@ export class TimerEngine {
     private phases: Phase[],
     private cb: EngineCallbacks,
     private now: () => number = Date.now,
+    /** Rythme des ticks (pumps). Injecté uniquement par les tests avec horloge accélérée ; défaut production 100 ms. */
+    private tickMs: number = TICK_MS,
   ) {
     let o = 0;
     for (const p of phases) {
@@ -155,7 +157,7 @@ export class TimerEngine {
 
   private loop(): void {
     this.stopLoop();
-    this.timer = setInterval(() => this.tick(), TICK_MS);
+    this.timer = setInterval(() => this.tick(), this.tickMs);
   }
 
   private stopLoop(): void {

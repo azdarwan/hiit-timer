@@ -54,10 +54,15 @@ describe('SessionController', () => {
       settings,
       wakeLock: null,
       clock: () => virtual,
+      // Horloge virtuelle ×50 : les pumps doivent suivre ce rythme (toutes
+      // les ~4 ms d'horloge virtuelle), sinon l'écart entre pumps dépasse
+      // FROZEN_PUMP_GAP_MS et la consolidation croit à un gel (test non
+      // déterministe en CI selon la charge, vu le 23/11 sur le run 12aeca2).
+      tickMs: 2,
     });
     controller.start(config);
 
-    // avance la séance virtuelle par pas de 250 ms, tick réel toutes les 100 ms
+    // avance la séance virtuelle par pas de 250 ms, pump toutes les 2 ms réelles
     let finished = false;
     const p = new Promise<void>((resolve) => {
       const interval = setInterval(() => {

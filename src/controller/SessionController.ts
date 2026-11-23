@@ -20,6 +20,8 @@ export interface SessionControllerDeps {
   wakeLock: WakeLockManager | null;
   /** Horloge virtuelle du moteur, en ms. Par défaut : Date.now(). */
   clock?: () => number;
+  /** Rythme de pump du moteur, en ms (défaut 100). Tests avec horloge très accélérée uniquement. */
+  tickMs?: number;
   onSnapshot?: (s: EngineSnapshot) => void;
   onFinish?: (realElapsedMs: number, virtualElapsedMs: number, reps: RepRecord[]) => void;
   onPaused?: () => void;
@@ -215,6 +217,7 @@ export class SessionController {
         },
       },
       this.deps.clock,
+      this.deps.tickMs,
     );
   }
 

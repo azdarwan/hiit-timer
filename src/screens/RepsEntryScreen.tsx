@@ -39,7 +39,7 @@ export default function RepsEntryScreen(props: Props) {
   const value = entry ? (values[key] ?? 0) : 0;
 
   const merged = (): RepRecord[] => {
-    const out = new Map(
+    const out = new Map<string, RepRecord>(
       props.records.map((r) => [`${r.round}:${normalizeName(r.exercise)}`, { ...r }] as const),
     );
     for (const e of entries) {

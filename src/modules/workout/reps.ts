@@ -30,7 +30,7 @@ export function allRepsEntries(config: WorkoutConfig): RepsEntry[] {
  * cellules du tableau.
  */
 export function missingRepsEntries(config: WorkoutConfig, records: RepRecord[]): RepsEntry[] {
-  const known = new Map(
+  const known = new Map<string, number>(
     records.map((r) => [`${r.round}:${normalizeName(r.exercise)}`, r.reps] as const),
   );
   return allRepsEntries(config).filter(

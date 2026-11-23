@@ -42,8 +42,8 @@ describe('migrateExerciseDefs (nouvel ordre du 23/11)', () => {
     expect(migrated.map((d) => d.name)).toEqual(DEFAULT_EXERCISES.map((d) => d.name));
   });
 
-  it('renvoie les nouveaux défauts si aucune définition', () => {
-    expect(migrateExerciseDefs(undefined)).toBe(DEFAULT_EXERCISES);
-    expect(migrateExerciseDefs([])).toBe(DEFAULT_EXERCISES);
+  it('laisse une liste absente ou vide telle quelle (remplie à l\'exécution)', () => {
+    expect(migrateExerciseDefs(undefined)).toBeUndefined();
+    expect(migrateExerciseDefs([])).toEqual([]);
   });
 });

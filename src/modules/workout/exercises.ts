@@ -72,8 +72,8 @@ export function normalizeName(name: string): string {
  * Toute liste personnalisée (au moins un nom modifié) est laissée telle
  * quelle : la migration ne touche jamais un vrai réglage utilisateur.
  */
-export function migrateExerciseDefs(defs: ExerciseDef[] | undefined): ExerciseDef[] {
-  if (!defs || defs.length === 0) return DEFAULT_EXERCISES;
+export function migrateExerciseDefs(defs: ExerciseDef[] | undefined): ExerciseDef[] | undefined {
+  if (!defs || defs.length === 0) return defs;
   const legacyNames = new Set(LEGACY_DEFAULT_EXERCISES.map((d) => normalizeName(d.name)));
   const byName = new Map(defs.map((d) => [normalizeName(d.name), { ...d }]));
   if (defs.length !== legacyNames.size) return defs;

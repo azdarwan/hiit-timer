@@ -12,6 +12,7 @@ export const fr = {
     prepare: 'Prépare-toi',
     go: 'Go !',
     rest: 'Repos',
+    roundEnd: 'Fin du round, pause',
     half: 'Moitié',
     done: 'Séance terminée, bravo !',
   },

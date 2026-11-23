@@ -30,6 +30,8 @@ export interface Cue {
  *   round. "Round X" est donc prononcé à la FIN du repos long, pas à son début.
  * - moitié d'un travail >= 12 s : "Moitié"
  * - transition vers un repos : "Repos"
+ * - entrée du repos long (fin de round) : "Fin du round, pause", distinct
+ *   d'un repos court (décision du 23/11 : la fin de round doit être audible)
  * - fin de séance : "Séance terminée, bravo !"
  *
  * `countdownSec` : jalon de départ du décompte de fin de repos long
@@ -60,9 +62,12 @@ export function buildCues(
     } else if (phase.type === 'rest') {
       cues.push({ at, action: { say: s.rest, beep: 'transition', vibrate: 80 } });
     } else if (phase.type === 'longRest') {
-      // Pas de "Round X" à l'entrée du repos long : il est annoncé à la fin
-      // de la pause, juste avant le round qui arrive (backlog n°3).
-      cues.push({ at, action: { say: s.rest, beep: 'transition', vibrate: 150 } });
+      // Entrée du repos long (fin de round) : « Fin du round, pause », pas
+      // « Repos » (décision du 23/11 : la fin d'un round doit être audible,
+      // elle précédait sinon un décompte 3-2-1 identique à un repos court).
+      // Pas de « Round X » ici non plus : le numéro de round est annoncé à
+      // la fin de la pause, juste avant le round qui arrive (backlog n°3).
+      cues.push({ at, action: { say: s.roundEnd, beep: 'transition', vibrate: 150 } });
     }
 
     if (phase.type === 'longRest') {

@@ -12,6 +12,7 @@ export const en: DeepPartial<Strings> = {
     prepare: 'Get ready',
     go: 'Go !',
     rest: 'Rest',
+    roundEnd: 'End of round, rest',
     half: 'Halfway',
     done: 'Workout complete, well done !',
   },

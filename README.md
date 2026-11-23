@@ -97,6 +97,8 @@ Le moteur ne compte **jamais** « 1 tick = 1 seconde ». Le temps écoulé est t
 
 La file d'annonces est **pré-calculée** au lancement de la séance (`buildCues`) à partir du déroulé : chaque annonce a un instant de déclenchement exact. L'AudioContext et la voix sont débloqués par l'appui sur **Start** (contrainte Safari/iOS). Pour remplacer le TTS par des MP3 enregistrés, écris une autre implémentation de `VoiceService` — rien d'autre ne bouge.
 
+Vocabulaire vocal : « Repos » = repos court mid-round ; « **Fin du round, pause** » = entrée du repos long (décision du 23/11 : la fin d'un round doit s'entendre, le 3-2-1 qui précède est identique à celui d'un repos court) ; « Round X. Go ! » = fin du repos long, le numéro de round arrive juste avant le redémarrage, pas à l'entrée de la pause.
+
 **Son en arrière-plan (point 5)** : au clic **Start**, une boucle silencieuse (`src/modules/audio/backgroundAudio.ts`, WAV inaudible, pas muted) démarre une session audio de lecture. Sur iOS 16.4+ en PPA installée (écran d'accueil), l'appli continue de tourner tant qu'elle « lit du son », comme une musique : timer, bips et annonces vivent en arrière-plan, et `mediaSession` signale l'état à l'OS. Si l'OS fige quand même tout (gel total), le premier tick de retour joue une seule annonce d'état, pas une rafale. Repli identifié à valider sur iPhone réel : si le TTS reste coupé par l'OS en arrière-plan, les bips (Web Audio) distinguent les transitions et la voix parle au retour.
 
 ### Internationalisation (i18n)
@@ -134,7 +136,7 @@ Couvre notamment :
 - durée totale par défaut = **2020 s = 33:40**, somme des phases identique ;
 - calories estimées (méthode MET) : 255 kcal sur la séance par défaut à 75 kg, proportionnelles au poids, calculées phase par phase sur le déroulé exact ;
 - noms des exercices portés par les phases (travail, repos, repos long) et compatibilité avec les anciennes configs sans définitions ;
-- toutes les annonces du tableau au bon instant sur la séance par défaut complète (horloge virtuelle déterministe), « Round X » à la fin du repos long, décompte en jalons (D=15 → 15, 10, 5, 3-2-1 et sa coupure sur un repos long trop court) ;
+- toutes les annonces du tableau au bon instant sur la séance par défaut complète (horloge virtuelle déterministe), « Round X » à la fin du repos long, « Fin du round, pause » à l'entrée du repos long (distinct d'un repos court, décision du 23/11), décompte en jalons (D=15 → 15, 10, 5, 3-2-1 et sa coupure sur un repos long trop court) ;
 - historique : stockage par jour (sans heure), CSV Excel fr avec ligne résumé + lignes par exercice/round ;
 - session en cours : reps persistées à la pause, restituées à la reprise ; arrière-plan : l'écart entre deux pumps détecte un gel total (seuil 1,5 s), l'arriéré n'est jamais rejeté en rafale : purge de la file vocale puis annonce d'état (la plus récente due), et en marche normale aucune annonce n'est consolidée ;
 - pause puis reprise sans dérive (pause réelle chronométrée) ;

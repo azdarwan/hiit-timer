@@ -28,11 +28,11 @@ describe('File d\'annonces pré-calculée', () => {
     // Décompte avant le premier repos : "Repos" à la transition (t=40 s)
     expect(says).toContainEqual({ at: 40000, say: 'Repos' });
 
-    // Repos long : "Repos" à l'entrée (pas de "Round" à l'entrée)
+    // Repos long : « Fin du round, pause » à l'entrée (pas de "Round" à l'entrée)
     const longRestIndex = phases.findIndex((p) => p.type === 'longRest' && p.round === 2);
-    expect(says).toContainEqual({ at: offsets[longRestIndex] * 1000, say: 'Repos' });
+    expect(says).toContainEqual({ at: offsets[longRestIndex] * 1000, say: 'Fin du round, pause' });
     const longRestIndex3 = phases.findIndex((p) => p.type === 'longRest' && p.round === 3);
-    expect(says).toContainEqual({ at: offsets[longRestIndex3] * 1000, say: 'Repos' });
+    expect(says).toContainEqual({ at: offsets[longRestIndex3] * 1000, say: 'Fin du round, pause' });
     expect(says.filter((s) => s.say === 'Round 2' || s.say === 'Round 3')).toHaveLength(0);
 
     // "Round X" est annoncé EN FIN de repos long, juste avant le round (n°3)
@@ -57,9 +57,10 @@ describe('File d\'annonces pré-calculée', () => {
     // Fin de séance à 2020 s
     expect(says).toContainEqual({ at: 2020000, say: 'Séance terminée, bravo !' });
 
-    // Comptages : 45 travaux -> 45 "Moitié" ; 42 repos + 2 repos longs = 44 "Repos"
+    // Comptages : 45 travaux -> 45 "Moitié" ; 42 "Repos" courts + 2 "Fin du round, pause"
     expect(says.filter((s) => s.say === 'Moitié')).toHaveLength(45);
-    expect(says.filter((s) => s.say === 'Repos')).toHaveLength(44);
+    expect(says.filter((s) => s.say === 'Repos')).toHaveLength(42);
+    expect(says.filter((s) => s.say === 'Fin du round, pause')).toHaveLength(2);
     expect(says.filter((s) => s.say === 'Round 1. Go !')).toHaveLength(1);
     expect(says.filter((s) => s.say === 'Round 2. Go !')).toHaveLength(1);
     expect(says.filter((s) => s.say === 'Round 3. Go !')).toHaveLength(1);

@@ -63,7 +63,7 @@ describe('migrateExerciseDefs (nouvel ordre du 23/11)', () => {
 describe('moveExercise (glisser-déposer)', () => {
   const names = (ds: { name: string }[]) => ds.map((d) => d.name);
 
-  it('déplace un exercice vers le haut (déplace d'un cran vers le haut)', () => {
+  it("déplace un exercice d'un cran vers le haut", () => {
     const defs = DEFAULT_EXERCISES.map((d) => ({ ...d }));
     const moved = moveExercise(defs, 6, 5); // Tractions de 7 vers 6
     expect(names(moved)).toEqual([

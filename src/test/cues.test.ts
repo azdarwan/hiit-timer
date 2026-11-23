@@ -111,7 +111,7 @@ describe('File d\'annonces pré-calculée', () => {
     const says = buildCues(phases, 'fr', 0).map((c) => c.action.say!);
     expect(says).not.toContain('10');
     expect(says).toContain('3');
-    expect(says).toContain('Repos');
+    expect(says).toContain('Fin du round, pause');
   });
 
   it('coupe le décompte étendu si le repos long est trop court', () => {

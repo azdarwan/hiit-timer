@@ -82,7 +82,7 @@ describe('moveExercise (glisser-déposer)', () => {
       'Dips triceps', 'Planche', 'Montées de genoux', 'Fentes', 'Pompes avec rotation',
       'Gainage latéral gauche', 'Gainage latéral droit', 'Jumping jacks',
     ]);
-    expect(names(moveExercise(defs, 14, -5)).toEqual(names(moveExercise(defs, 14, 0))));
+    expect(names(moveExercise(defs, 14, -5))).toEqual(names(moveExercise(defs, 14, 0)));
     expect(names(moveExercise(defs, 3, 999))).toEqual(names(moveExercise(defs, 3, 14)));
   });
 
@@ -109,9 +109,11 @@ describe('editableDefsFor (édition sans troncature)', () => {
     expect(defs[6].name).toBe('Tractions');
   });
 
-  it('retombe sur les défauts si la config ne sauvegarde pas de defs', () => {
+  it('retombe sur les défauts complets si la config ne sauvegarde pas de defs', () => {
     const defs = editableDefsFor(baseConfig);
-    expect(defs.map((d) => d.name)).toEqual(DEFAULT_EXERCISES.map((d) => d.name).slice(0, 5));
+    // anti-troncation même sans sauvegarde : les 15 défauts restent éditables
+    expect(defs).toHaveLength(15);
+    expect(defs.map((d) => d.name)).toEqual(DEFAULT_EXERCISES.map((d) => d.name));
     expect(defs[0].name).toBe('Jumping jacks');
   });
 });

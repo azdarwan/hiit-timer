@@ -4,7 +4,7 @@ Minuteur HIIT (High Intensity Interval Training) — PWA installable, **100 % ho
 
 - Travail / Repos / Rounds / Repos long / Préparation, entièrement configurables
 - **Séance par défaut** (base du Scientific 7-Minute Workout, enrichie) : jumping jacks, chaise, pompes (reps), crunch, step-up, squat, tractions (reps), pont fessier, dips triceps, planche, montées de genoux, fentes, pompes avec rotation (reps), gainage latéral gauche, gainage latéral droit. L'ancien ordre par défaut est migré automatiquement au chargement ; une liste d'exercices personnalisée n'est jamais touchée
-- **Exercices nommés + comptage des reps** (pompes, tractions…) saisi à la fin de chaque round, avec **récapitulatif complet corrigible avant validation** sur l'écran de fin
+- **Exercices nommés + comptage des reps** (pompes, tractions…) saisis au **pavé numérique**, avec **écran de saisie pour ce qui manque avant le récapitulatif** (en général le dernier round), puis **récapitulatif complet corrigible**
 - **Historique des séances** (jour, durées, reps par round, calories estimées) + export CSV Excel
 - **Synchro serveur optionnelle** : mini-API PHP à déployer sur un hébergement OVH (cf. `server/README.md`), lisible aussi par un agent (JSON/CSV)
 - Annonces vocales (TTS navigateur, FR/EN) et bips Web Audio (aucun fichier son)
@@ -64,6 +64,7 @@ src/
 ├── modules/
 │   ├── workout/plan.ts          # déroulé de séance : phases, noms d'exercices, durées
 │   ├── workout/exercises.ts     # exercices par défaut, noms normalisés (clé des données)
+│   ├── workout/reps.ts          # entrées de reps (fiches, écran avant récap)
 │   ├── timer/engine.ts          # moteur de timer basé timestamps (aucune accumulation d'intervalles)
 │   ├── announce/cues.ts         # file d'annonces pré-calculée (round en fin de pause, décompte)
 │   ├── voice/VoiceService.ts    # interface VoiceService + TTS (remplaçable par des MP3)
@@ -72,7 +73,7 @@ src/
 │   ├── wakelock/wakelock.ts     # Screen Wake Lock, repli silencieux
 │   └── storage/                 # réglages, favoris, séance en cours, historique CSV (localStorage)
 ├── controller/SessionController.ts  # relie moteur, annonces, voix, bips, wake lock, reps, persistance, rattrapage arrière-plan
-├── screens/                     # ConfigScreen, SessionScreen, DoneScreen
+├── screens/                     # ConfigScreen, SessionScreen, RepsKeypad, RepsEntryScreen, DoneScreen
 └── test/                         # tests vitest
 server/                           # mini-API PHP (OVH) : stockage des séances, export JSON/CSV
 ```
@@ -81,9 +82,16 @@ server/                           # mini-API PHP (OVH) : stockage des séances, 
 
 Chaque exercice a un **nom** (modifiable dans l'écran config) et une option
 « Compter les reps ». Pendant chaque **pause longue**, une fiche de saisie
-liste tous les exercices comptés du round qui vient de finir. À la **fin de la
-séance**, un tableau récapitulatif (lignes = exercices, colonnes = rounds) montre
-tout ce qui a été saisi, corrigible au doigt avant « Valider la séance »
+propose **une entrée à la fois au pavé numérique** (chiffres, retour arrière,
+tout effacer) : « Suivant » passe à l'exercice suivant, « Valider » referme
+la fiche (rouvrable d'un bouton), et des puces tappables listent le round
+avec leurs valeurs. La fiche reste affichée même en pause manuelle.
+À la **fin de la séance**, si des reps manquent (en général le dernier
+round, sans pause longue derrière lui), un **écran de saisie dédié**
+s'intercale **avant** le récapitulatif ; s'il ne manque rien, le récap
+arrive directement comme avant. Puis le tableau récapitulatif
+(lignes = exercices, colonnes = rounds) montre tout ce qui a été saisi,
+corrigible au doigt avant « Valider la séance »
 (validation non bloquante : la séance est déjà sauvegardée).
 La saisie ne bloque jamais le timer. Les reps sont stockées **par round** avec le **jour** de la séance
 (l'heure est inutile). Les données sont rattachées au **nom normalisé** de

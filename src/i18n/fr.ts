@@ -25,6 +25,10 @@ export const fr = {
     cancel: 'Annuler',
     ignore: 'Ignorer',
     save: 'Sauver',
+    next: 'Suivant',
+    validate: 'Valider',
+    backspace: 'Effacer',
+    clear: 'Tout effacer',
   },
   config: {
     sessionInProgress: 'Séance en cours (pause)',
@@ -41,7 +45,7 @@ export const fr = {
     plus: 'Plus',
     exercisesRepsTitle: 'Exercices & reps',
     exercisesRepsHint:
-      "Le comptage est demandé pendant la pause longue, à la fin de chaque round ; l'écran de fin montre le récapitulatif complet de la séance, corrigible avant validation. Les données suivent le nom : si tu changes d'exercice dans le cycle, l'historique reste comparable.",
+      "Le comptage se saisit au pavé numérique pendant la pause longue, à la fin de chaque round (bouton « Suivant » pour l'exercice suivant) ; en fin de séance, un écran complète ce qui manque (en général le dernier round), puis le récapitulatif complet reste corrigible avant validation. Les données suivent le nom : si tu changes d'exercice dans le cycle, l'historique reste comparable.",
     exerciseName: "Nom de l'exercice",
     countReps: 'Compter les reps :',
     reps: 'reps',
@@ -98,6 +102,10 @@ export const fr = {
     inProgressTitle: 'Séance en cours',
     lessOf: 'Moins de',
     plusOf: 'Plus de',
+    repsReopen: 'Modifier les reps de ce round',
+    entryTitle: 'Saisie des reps',
+    entryHint:
+      'Complète ce qui manque (en général le dernier round, sans pause longue derrière lui) : le récapitulatif complet arrive juste après, corrigible avant export.',
   },
   done: {
     title: 'Séance terminée',

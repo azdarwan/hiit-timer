@@ -16,9 +16,11 @@ import { strings } from './i18n';
 import { SessionController } from './controller/SessionController';
 import ConfigScreen from './screens/ConfigScreen';
 import SessionScreen from './screens/SessionScreen';
+import RepsEntryScreen from './screens/RepsEntryScreen';
 import DoneScreen from './screens/DoneScreen';
+import { missingRepsEntries } from './modules/workout/reps';
 
-type Screen = 'config' | 'session' | 'done';
+type Screen = 'config' | 'session' | 'repsEntry' | 'done';
 
 function readSimSpeed(): number {
   try {
@@ -53,6 +55,18 @@ export default function App() {
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
   const [reps, setReps] = useState<Record<string, number>>({});
   const [, setVoicesTick] = useState(0);
+  /**
+   * Fin de séance en attente de saisie (demande du 23/11) : quand il
+   * manque des reps (en général le dernier round, sans pause longue
+   * derrière lui), l'écran de saisie au pavé numérique s'intercale AVANT
+   * le récapitulatif. La séance y est enregistrée à la validation.
+   */
+  const [pendingEntry, setPendingEntry] = useState<{
+    realMs: number;
+    totalMs: number;
+    config: WorkoutConfig;
+    records: RepRecord[];
+  } | null>(null);
 
   const controllerRef = useRef<SessionController | null>(null);
   const voiceRef = useRef(new TtsVoiceService());
@@ -162,36 +176,54 @@ export default function App() {
     [config, settings.syncUrl, settings.syncToken, settings.weightKg],
   );
 
+  /**
+   * Fin de séance (redesign du 23/11) : si des reps manquent (en général
+   * le dernier round, pas de pause longue derrière lui), l'écran de
+   * saisie au pavé numérique s'intercale AVANT le récapitulatif, avec les
+   * records de la séance ; la séance est enregistrée à sa validation.
+   * Sinon (rien ne manque), récap direct comme avant.
+   */
+  const finishFlow = useCallback(
+    (realMs: number, totalMs: number, repRecords: RepRecord[]) => {
+      bgAudioRef.current.stop();
+      const cfg = controllerRef.current?.workoutConfig ?? config;
+      if (missingRepsEntries(cfg, repRecords).length === 0) {
+        recordSession(realMs, totalMs, repRecords);
+        setDoneInfo({ realMs, totalMs });
+        setScreen('done');
+        return;
+      }
+      setPendingEntry({ realMs, totalMs, config: cfg, records: repRecords });
+      setSnapshot(null);
+      setScreen('repsEntry');
+    },
+    [config, recordSession],
+  );
+
   const startSession = useCallback(() => {
     initAudio();
     const controller = createController((realMs, totalMs, repRecords) => {
-      recordSession(realMs, totalMs, repRecords);
-      setDoneInfo({ realMs, totalMs });
-      bgAudioRef.current.stop();
-      setScreen('done');
+      finishFlow(realMs, totalMs, repRecords);
     });
     controllerRef.current = controller;
     controller.start(config);
     setSnapshot(null);
     setReps({});
     setScreen('session');
-  }, [config, createController, initAudio, recordSession]);
+  }, [config, createController, initAudio, finishFlow]);
 
   const resumeSavedSession = useCallback(() => {
     const saved = savedSession;
     if (!saved) return;
     initAudio();
     const controller = createController((realMs, totalMs, repRecords) => {
-      recordSession(realMs, totalMs, repRecords);
-      setDoneInfo({ realMs, totalMs });
-      bgAudioRef.current.stop();
-      setScreen('done');
+      finishFlow(realMs, totalMs, repRecords);
     });
     controllerRef.current = controller;
     controller.restore(saved);
     setSavedSession(null);
     setScreen('session');
-  }, [savedSession, createController, initAudio, recordSession]);
+  }, [savedSession, createController, initAudio, finishFlow]);
 
   const discardSavedSession = useCallback(() => {
     clearSession();
@@ -204,6 +236,7 @@ export default function App() {
     bgAudioRef.current.stop();
     setSnapshot(null);
     setSavedSession(null);
+    setPendingEntry(null);
     setScreen('config');
   }, []);
 
@@ -252,6 +285,22 @@ export default function App() {
         onSkip={() => controllerRef.current?.skip()}
         onExit={exitSession}
         simSpeed={simSpeed}
+      />
+    );
+  }
+
+  if (screen === 'repsEntry' && pendingEntry) {
+    return (
+      <RepsEntryScreen
+        lang={settings.lang}
+        config={pendingEntry.config}
+        records={pendingEntry.records}
+        onComplete={(merged) => {
+          recordSession(pendingEntry.realMs, pendingEntry.totalMs, merged);
+          setDoneInfo({ realMs: pendingEntry.realMs, totalMs: pendingEntry.totalMs });
+          setPendingEntry(null);
+          setScreen('done');
+        }}
       />
     );
   }

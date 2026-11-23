@@ -25,6 +25,10 @@ export const en: DeepPartial<Strings> = {
     cancel: 'Cancel',
     ignore: 'Dismiss',
     save: 'Save',
+    next: 'Next',
+    validate: 'Confirm',
+    backspace: 'Delete digit',
+    clear: 'Clear',
   },
   session: {
     round: 'Round',
@@ -34,5 +38,9 @@ export const en: DeepPartial<Strings> = {
     paused: 'Paused',
     inProgressTitle: 'Workout in progress',
     remaining: 'Remaining\u00A0:',
+    repsReopen: 'Edit this round\u2019s reps',
+    entryTitle: 'Rep entry',
+    entryHint:
+      'Fill in what is missing (usually the last round, no long rest after it): the full summary comes right after, still editable before export.',
   },
 };

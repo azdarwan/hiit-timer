@@ -677,6 +677,116 @@ body {
   color: var(--text);
 }
 
+/* ---------- Pavé numérique de reps (redesign 23/11) ---------- */
+
+.keypad {
+  margin-top: 8px;
+}
+
+.keypad-value {
+  margin: 0 auto;
+}
+
+.keypad-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  max-width: 300px;
+  margin: 10px auto 0;
+}
+
+.keypad-key {
+  height: 52px;
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text);
+  background: var(--surface-2);
+  border: none;
+  border-radius: 14px;
+}
+
+.keypad-key.action {
+  font-size: 18px;
+}
+
+.keypad-key:active {
+  background: #3a3a3a;
+  transform: scale(0.94);
+}
+
+.keypad-confirm {
+  margin-top: 12px;
+}
+
+.entry-name-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+}
+
+.re-entry-name {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.re-entry-round {
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.re-progress {
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.reps-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.reps-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.reps-chip.current {
+  border-color: var(--text);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.reps-reopen {
+  margin: 12px 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: none;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* ---------- Écran de saisie avant le récap ---------- */
+
+.entry-hint {
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+  margin: 0 0 12px;
+}
+
+.entry-skip {
+  margin-top: 10px;
+}
+
 /* ---------- Fin de séance : reps ---------- */
 
 .done-reps {

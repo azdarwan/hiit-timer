@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { EngineSnapshot } from '../modules/timer/engine';
 import type { WorkoutConfig, Lang } from '../types';
 import { exercisesFor, normalizeName } from '../modules/workout/exercises';
 import { formatDuration } from '../modules/workout/plan';
 import { strings } from '../i18n';
 import type { Strings } from '../i18n';
+import RepsKeypad from './RepsKeypad';
 
 interface Props {
   snapshot: EngineSnapshot;
@@ -50,16 +51,28 @@ export default function SessionScreen(props: Props) {
   const remainingSec = Math.ceil(snapshot.remainingMs / 1000);
   const phaseClass = `phase-${snapshot.phase.type}`;
 
-  // Saisie des reps à la fin de chaque round (spec du 21/11/2026) : pendant
-  // chaque pause longue, une fiche liste tous les exercices "reps" du round
-  // qui vient de finir. Elle reste affichée pendant toute la pause, ne
-  // bloque pas le timer, et disparaît au round suivant avec ce qui a été
-  // rempli. Les éventuelles manquantes du dernier round (pas de pause longue
-  // après lui) se complètent sur l'écran de fin.
+  // Saisie des reps à la fin de chaque round (spec du 21/11, redesign du
+  // 23/11) : pendant chaque pause longue, une fiche propose UNE entrée à
+  // la fois au pavé numérique, avec « Suivant » pour l'exercice suivant,
+  // « Valider » pour refermer la fiche (rouvrable d'un bouton). Des puces
+  // listent les exercices du round avec leur valeur, tappables pour
+  // corriger à la volée. Elle reste affichée pendant toute la pause, y
+  // compris en pause manuelle, ne bloque pas le timer, et repart à zéro
+  // au round suivant. Les manquantes du dernier round (pas de pause
+  // longue après lui) se complètent sur l'écran de saisie avant le récap.
   const defs = exercisesFor(props.config);
   const p = snapshot.phase;
-  const finishedRound = !paused && p.type === 'longRest' ? p.round - 1 : 0;
+  const finishedRound = p.type === 'longRest' ? p.round - 1 : 0;
   const repDefs = finishedRound > 0 ? defs.filter((d) => d.countReps) : [];
+  const [entryIndex, setEntryIndex] = useState(0);
+  const [validatedRound, setValidatedRound] = useState(0);
+  useEffect(() => {
+    setEntryIndex(0);
+  }, [finishedRound]);
+  const ficheOpen = finishedRound > 0 && repDefs.length > 0 && validatedRound !== finishedRound;
+  const idx = repDefs.length > 0 ? Math.min(entryIndex, repDefs.length - 1) : 0;
+  const entryDef = repDefs[idx];
+  const repValue = (name: string) => props.reps[`${finishedRound}:${normalizeName(name)}`] ?? 0;
 
   return (
     <div className={`screen session ${phaseClass}`}>
@@ -78,42 +91,50 @@ export default function SessionScreen(props: Props) {
       </div>
 
       {finishedRound > 0 && repDefs.length > 0 && (
-        <div className="reps-input" data-testid="reps-input">
-          <div className="reps-title">{`${s.session.repsOfRound} ${finishedRound}`}</div>
-          <ul className="reps-list">
-            {repDefs.map((def) => {
-              const value = props.reps[`${finishedRound}:${normalizeName(def.name)}`] ?? 0;
-              return (
-                <li className="reps-item" key={def.name}>
-                  <span className="reps-label">
-                    {def.name}{' '}
-                    <span className="reps-round">
-                      ({s.session.roundShort}
-                      {finishedRound})
-                    </span>
-                  </span>
-                  <div className="reps-row">
-                    <button
-                      className="reps-btn"
-                      aria-label={`${s.session.lessOf} ${def.name}`}
-                      onClick={() => props.onSetReps(def.name, finishedRound, Math.max(0, value - 1))}
-                    >
-                      −
-                    </button>
-                    <div className="reps-value">{value || ''}</div>
-                    <button
-                      className="reps-btn"
-                      aria-label={`${s.session.plusOf} ${def.name}`}
-                      onClick={() => props.onSetReps(def.name, finishedRound, value + 1)}
-                    >
-                      +
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+        ficheOpen && entryDef ? (
+          <div className="reps-input" data-testid="reps-input">
+            <div className="reps-title">{`${s.session.repsOfRound} ${finishedRound}`}</div>
+            <div className="entry-name-row">
+              <span className="re-entry-name">{entryDef.name}</span>
+              <span className="re-progress">{`${idx + 1}/${repDefs.length}`}</span>
+            </div>
+            <RepsKeypad
+              value={repValue(entryDef.name)}
+              onChange={(v) => props.onSetReps(entryDef.name, finishedRound, v)}
+              confirmLabel={idx < repDefs.length - 1 ? s.common.next : s.common.validate}
+              onConfirm={() => {
+                if (idx < repDefs.length - 1) setEntryIndex(idx + 1);
+                else setValidatedRound(finishedRound);
+              }}
+              backspaceLabel={s.common.backspace}
+              clearLabel={s.common.clear}
+            />
+            <div className="reps-chips">
+              {repDefs.map((d, i) => {
+                const v = repValue(d.name);
+                return (
+                  <button
+                    key={d.name}
+                    className={`reps-chip${i === idx ? ' current' : ''}`}
+                    onClick={() => setEntryIndex(i)}
+                  >
+                    {`${d.name} ${v > 0 ? v : '–'}`}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <button
+            className="reps-reopen"
+            onClick={() => {
+              setValidatedRound(0);
+              setEntryIndex(0);
+            }}
+          >
+            {s.session.repsReopen}
+          </button>
+        )
       )}
 
       <div className="session-total">

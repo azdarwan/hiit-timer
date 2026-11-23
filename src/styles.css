@@ -540,6 +540,42 @@ body {
   background: var(--surface);
   border-radius: 12px;
   padding: 8px 12px;
+  transition: transform 0.06s linear;
+  touch-action: pan-y;
+}
+
+.exercise-row.dragging {
+  z-index: 5;
+  position: relative;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+  opacity: 0.96;
+  background: var(--surface-2);
+}
+
+.exercise-handle {
+  /* Poignée de glissement : touch-action none pour capturer le doigt, sinon iOS scrolle la page. */
+  touch-action: none;
+  cursor: grab;
+  background: none;
+  border: none;
+  padding: 8px 4px;
+  margin-left: -4px;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.exercise-handle:active {
+  cursor: grabbing;
+  color: var(--accent);
+}
+
+.exercise-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
 }
 
 .exercise-index {

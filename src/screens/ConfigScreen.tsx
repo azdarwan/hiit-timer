@@ -1,12 +1,13 @@
 import type { Settings, WorkoutConfig } from '../types';
 import { CONFIG_LIMITS, COUNTDOWN_LIMITS, WEIGHT_LIMITS } from '../types';
 import { formatDuration, totalDuration } from '../modules/workout/plan';
-import { exercisesFor } from '../modules/workout/exercises';
+import { DEFAULT_EXERCISES, editableDefsFor, exercisesFor, moveExercise } from '../modules/workout/exercises';
 import type { Favorite } from '../modules/storage/favorites';
 import type { SavedSession } from '../modules/storage/session';
 import { listSessions, clearHistory, toCSV, downloadCSV } from '../modules/storage/history';
 import type { VoiceOption } from '../modules/voice/VoiceService';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { strings } from '../i18n';
 import type { Strings } from '../i18n';
 
@@ -45,6 +46,12 @@ export default function ConfigScreen(props: Props) {
   const c = s.config;
   const total = totalDuration(config);
   const defs = exercisesFor(config);
+  const shownCount = defs.length;
+
+  /** Glisser-déposer : source de vérité dans un ref (pas de closure périmée en cours de geste), l'état ne sert qu'au visuel. */
+  const dragRef = useRef<{ index: number; startY: number; rowH: number; dy: number } | null>(null);
+  const [dragShift, setDragShift] = useState<{ index: number; dy: number } | null>(null);
+  const rowRefs = useRef<(HTMLLIElement | null)[]>([]);
 
   const setField = (key: keyof WorkoutConfig, value: number) => {
     const { min } = CONFIG_LIMITS[key as keyof typeof CONFIG_LIMITS];
@@ -52,10 +59,52 @@ export default function ConfigScreen(props: Props) {
     onConfigChange({ ...config, [key]: value });
   };
 
-  /** Met à jour la définition d'un exercice (nom ou comptage de reps). */
+  /** Met à jour la définition d'un exercice (nom ou comptage de reps), SANS tronquer la liste sauvegardée. */
   const setExercise = (index: number, patch: Partial<{ name: string; countReps: boolean }>) => {
-    const next = defs.map((d, i) => (i === index ? { ...d, ...patch } : d));
+    const base = editableDefsFor(config);
+    const next = base.map((d, i) => (i === index ? { ...d, ...patch } : d));
     onConfigChange({ ...config, exerciseDefs: next });
+  };
+
+  /** Réordonne la liste complète à partir d'un déplacement visible. */
+  const commitMove = (from: number, to: number) => {
+    const base = editableDefsFor(config);
+    const lastShown = shownCount - 1;
+    const target = Math.max(0, Math.min(lastShown, to));
+    onConfigChange({ ...config, exerciseDefs: moveExercise(base, from, target) });
+  };
+
+  const startDrag = (index: number) => (e: ReactPointerEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const row = rowRefs.current[index];
+    // hauteur + gap (8px dans .exercise-list) = pas d'un cran
+    const rowH = (row?.offsetHeight ?? 56) + 8;
+    dragRef.current = { index, startY: e.clientY, rowH, dy: 0 };
+    setDragShift({ index, dy: 0 });
+  };
+
+  const moveDrag = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    const d = dragRef.current;
+    if (!d) return;
+    d.dy = e.clientY - d.startY;
+    setDragShift({ index: d.index, dy: d.dy });
+  };
+
+  const endDrag = () => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    setDragShift(null);
+    if (!d) return;
+    const offset = d.rowH > 0 ? Math.round(d.dy / d.rowH) : 0;
+    if (offset !== 0) commitMove(d.index, d.index + offset);
+  };
+
+  /** Remet exactement la séance par défaut validée (un coup de tampon sur n'importe quel historique localStorage). */
+  const resetDefaults = () => {
+    if (window.confirm(c.resetDefaultsConfirm)) {
+      onConfigChange({ ...config, exerciseDefs: DEFAULT_EXERCISES.map((d) => ({ ...d })) });
+    }
   };
 
   const setCountdown = (value: number) => {
@@ -153,9 +202,30 @@ export default function ConfigScreen(props: Props) {
         <h2>{c.exercisesRepsTitle}</h2>
         <p className="section-hint">{c.exercisesRepsHint}</p>
         <ul className="exercise-list">
-          {defs.map((def, i) => (
-            <li className="exercise-row" key={i}>
-              <span className="exercise-index">{i + 1}</span>
+          {defs.map((def, i) => {
+            const dragging = dragShift && dragShift.index === i;
+            const style = dragging ? { transform: `translateY(${dragShift!.dy}px)` } : undefined;
+            return (
+              <li
+                className={`exercise-row${dragging ? ' dragging' : ''}`}
+                key={i}
+                ref={(el) => {
+                  rowRefs.current[i] = el;
+                }}
+                style={style}
+              >
+                <button
+                  type="button"
+                  className="exercise-handle"
+                  aria-label={`${c.dragHandlePrefix} ${def.name}`}
+                  onPointerDown={startDrag(i)}
+                  onPointerMove={moveDrag}
+                  onPointerUp={endDrag}
+                  onPointerCancel={endDrag}
+                >
+                  ⠿
+                </button>
+                <span className="exercise-index">{i + 1}</span>
               <input
                 className="exercise-name"
                 type="text"
@@ -174,8 +244,12 @@ export default function ConfigScreen(props: Props) {
                 {c.reps}
               </label>
             </li>
-          ))}
+            );
+          })}
         </ul>
+        <div className="exercise-actions">
+          <button className="btn ghost" onClick={resetDefaults}>{c.resetDefaults}</button>
+        </div>
       </section>
 
       <section className="section">

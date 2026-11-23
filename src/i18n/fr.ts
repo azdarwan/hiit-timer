@@ -45,7 +45,10 @@ export const fr = {
     plus: 'Plus',
     exercisesRepsTitle: 'Exercices & reps',
     exercisesRepsHint:
-      "Le comptage se saisit au pavé numérique pendant la pause longue, à la fin de chaque round (bouton « Suivant » pour l'exercice suivant) ; en fin de séance, un écran complète ce qui manque (en général le dernier round), puis le récapitulatif complet reste corrigible avant validation. Les données suivent le nom : si tu changes d'exercice dans le cycle, l'historique reste comparable.",
+      "Réorganise la séance avec la poignée de gauche de chaque ligne : glisse-la vers sa nouvelle position. Retouche les noms, coche les exercices dont tu comptes les reps (saisie au pavé numérique pendant la pause longue de chaque round, puis écran de complétion avant le récapitulatif). Le bouton de réinitialisation remet la séance par défaut validée, quel que soit l'historique de l'appli. Les données suivent le nom : si tu changes d'exercice dans le cycle, l'historique reste comparable.",
+    dragHandlePrefix: 'Déplacer',
+    resetDefaults: 'Réinitialiser la séance par défaut',
+    resetDefaultsConfirm: "Remettre la liste d'exercices par défaut ? Tes réglages de reps par défaut seront aussi remis à zéro.",
     exerciseName: "Nom de l'exercice",
     countReps: 'Compter les reps :',
     reps: 'reps',

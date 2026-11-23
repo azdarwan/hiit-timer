@@ -91,6 +91,38 @@ export function migrateExerciseDefs(defs: ExerciseDef[] | undefined): ExerciseDe
 }
 
 /**
+ * Déplace une définition (glisser-déposer de l'écran config). Recopie la
+ * liste : jamais de mutation en place. Les bornes sont resserrées pour
+ * que l'exercice reste dans [0, defs.length - 1].
+ */
+export function moveExercise(defs: ExerciseDef[], from: number, to: number): ExerciseDef[] {
+  const next = defs.map((d) => ({ ...d }));
+  if (from < 0 || from >= next.length || next.length === 0) return next;
+  const target = Math.max(0, Math.min(next.length - 1, to));
+  const [moved] = next.splice(from, 1);
+  next.splice(target, 0, moved);
+  return next;
+}
+
+/**
+ * Liste COMPLÈTE des définitions d'une config, recopiée pour édition.
+ * Contrairement à exercisesFor, elle ne tronque JAMAIS à `exercises` :
+ * l'écran de config n'affiche que `exercises` lignes, mais si l'édition
+ * resauvegardait la liste tronquée, réduire le nombre d'exercices puis le
+ * remonter détruirait les noms situés au-delà (et bloquerait la migration
+ * d'ordre, qui exige une liste de la bonne longueur). La liste est juste
+ * complétée avec "Exercice N" si elle est plus courte que le réglage.
+ */
+export function editableDefsFor(config: WorkoutConfig): ExerciseDef[] {
+  const base = (config.exerciseDefs ?? DEFAULT_EXERCISES).map((d) => ({ ...d }));
+  const n = Math.max(1, config.exercises);
+  while (base.length < n) {
+    base.push({ name: `Exercice ${base.length + 1}`, countReps: false });
+  }
+  return base;
+}
+
+/**
  * Liste des exercices d'une config, toujours alignée sur `exercises` :
  * tronquée si trop longue, complétée avec "Exercice N" si trop courte.
  * Compatibilité : une ancienne config (favori, séance sauvegardée) sans

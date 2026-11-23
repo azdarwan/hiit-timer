@@ -7,7 +7,7 @@ import {
 
 describe('migrateExerciseDefs (nouvel ordre du 23/11)', () => {
   it('remplace une liste par défaut historique dans le nouvel ordre', () => {
-    const migrated = migrateExerciseDefs(LEGACY_DEFAULT_EXERCISES);
+    const migrated = migrateExerciseDefs(LEGACY_DEFAULT_EXERCISES)!;
     // ordre voulu : tractions en 7, pont fessier en 8, gainage gauche/droit en 14 et 15
     expect(migrated.map((d) => d.name)).toEqual(DEFAULT_EXERCISES.map((d) => d.name));
     expect(migrated.map((d) => d.name)).toEqual([
@@ -22,7 +22,7 @@ describe('migrateExerciseDefs (nouvel ordre du 23/11)', () => {
     const legacy = LEGACY_DEFAULT_EXERCISES.map((d) =>
       d.name === 'Gainage latéral' ? { ...d, countReps: true } : { ...d },
     );
-    const migrated = migrateExerciseDefs(legacy);
+    const migrated = migrateExerciseDefs(legacy)!;
     expect(migrated.find((d) => d.name === 'Pompes')?.countReps).toBe(true);
     expect(migrated.find((d) => d.name === 'Tractions')?.countReps).toBe(true);
     expect(migrated.find((d) => d.name === 'Gainage latéral gauche')?.countReps).toBe(true);
@@ -38,7 +38,7 @@ describe('migrateExerciseDefs (nouvel ordre du 23/11)', () => {
   });
 
   it('est un no-op stable sur les nouveaux défauts', () => {
-    const migrated = migrateExerciseDefs(DEFAULT_EXERCISES);
+    const migrated = migrateExerciseDefs(DEFAULT_EXERCISES)!;
     expect(migrated.map((d) => d.name)).toEqual(DEFAULT_EXERCISES.map((d) => d.name));
   });
 

@@ -1,4 +1,5 @@
 import type { WorkoutConfig } from '../../types';
+import { migrateExerciseDefs } from '../workout/exercises';
 
 const FAVORITES_KEY = 'hiit-timer:favorites';
 
@@ -12,7 +13,13 @@ export function loadFavorites(): Favorite[] {
     const raw = localStorage.getItem(FAVORITES_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as Favorite[]) : [];
+    if (!Array.isArray(parsed)) return [];
+    // Même migration d'ordre que la config (uniquement les favoris jamais
+    // personnalisés, cf. migrateExerciseDefs).
+    return (parsed as Favorite[]).map((f) => ({
+      ...f,
+      config: { ...f.config, exerciseDefs: migrateExerciseDefs(f.config.exerciseDefs) },
+    }));
   } catch {
     return [];
   }

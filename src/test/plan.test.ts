@@ -67,9 +67,9 @@ describe('Déroulé de séance', () => {
     const work1 = phases.find((p) => p.type === 'work' && p.round === 1 && p.exercise === 1)!;
     expect(work1.exerciseName).toBe('Jumping jacks');
     expect(work1.countReps).toBe(false);
-    // comptage par défaut : pompes, pompes avec rotation, tractions
+    // comptage par défaut : pompes, tractions, pompes avec rotation
     expect(exercisesFor(DEFAULT_CONFIG).filter((d) => d.countReps).map((d) => d.name))
-      .toEqual(['Pompes', 'Pompes avec rotation', 'Tractions']);
+      .toEqual(['Pompes', 'Tractions', 'Pompes avec rotation']);
   });
 
   it('garde la compatibilité : ancienne config sans définitions, ou plus d\'exercices', () => {

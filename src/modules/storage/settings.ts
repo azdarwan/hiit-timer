@@ -1,5 +1,6 @@
 import type { Settings, WorkoutConfig } from '../../types';
 import { DEFAULT_CONFIG, DEFAULT_SETTINGS } from '../../types';
+import { migrateExerciseDefs } from '../workout/exercises';
 
 const SETTINGS_KEY = 'hiit-timer:settings';
 const CONFIG_KEY = 'hiit-timer:config';
@@ -26,7 +27,10 @@ export function loadConfig(): WorkoutConfig {
   try {
     const raw = localStorage.getItem(CONFIG_KEY);
     if (!raw) return { ...DEFAULT_CONFIG };
-    return { ...DEFAULT_CONFIG, ...(JSON.parse(raw) as Partial<WorkoutConfig>) };
+    // Migration de l'ordre par défaut (23/11) : ne remplace que les listes
+    // jamais personnalisées (cf. migrateExerciseDefs).
+    const config = { ...DEFAULT_CONFIG, ...(JSON.parse(raw) as Partial<WorkoutConfig>) };
+    return { ...config, exerciseDefs: migrateExerciseDefs(config.exerciseDefs) };
   } catch {
     return { ...DEFAULT_CONFIG };
   }

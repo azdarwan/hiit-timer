@@ -286,12 +286,12 @@ describe('SessionController', () => {
       isVoiceMuted: () => true, // musique externe : bips mixables à la place de la voix
     });
     controller.start(config);
-    virtual = 28_999; // gel simulé : « Go ! », « Moitié », « 3 », « 2 » dues -> consolidation sur la plus récente
+    virtual = 27_500; // gel simulé : « Go ! », « Moitié », « 3 » dues -> consolidation sur la plus récente (« 3 »)
     await new Promise((r) => setTimeout(r, 150));
-    virtual = 29_999; // écart faible : « 1 » part normalement
+    virtual = 28_999; // écart 1,499 s (sous le seuil de gel) : « 2 » ET « 1 » partent toutes les deux
     await new Promise((r) => setTimeout(r, 150));
     expect(said).toEqual([]); // aucune annonce vocale : la musique n'est jamais coupée
-    expect(played.filter((b) => b === 'tick')).toHaveLength(2); // les ticks « 2 » et « 1 » restent audibles par-dessus
+    expect(played.filter((b) => b === 'tick')).toHaveLength(3); // les ticks « 3 », « 2 », « 1 » restent audibles par-dessus
     controller.terminate();
   });
 });

@@ -8,6 +8,13 @@ import type { Lang } from '../../types';
 export interface VoiceService {
   /** À appeler depuis un gestionnaire de clic (débloque Safari/iOS). */
   init(): void;
+  /**
+   * Réveille la synthèse au retour au premier plan : iOS laisse parfois la
+   * file TTS muette (bloquée « pending ») après un arrière-plan interrompu
+   * par une autre source audio (bug constaté le 24/11 : silence même revenu
+   * sur l'appli, pause/play ne réveille rien).
+   */
+  rewarm(): void;
   setLang(lang: Lang): void;
   setEnabled(enabled: boolean): void;
   speak(text: string): void;
@@ -71,11 +78,28 @@ export class TtsVoiceService implements VoiceService {
     try {
       if (typeof speechSynthesis === 'undefined') return;
       speechSynthesis.getVoices();
-      // Utérence vide : débloque la synthèse vocale sur iOS au premier geste.
-      const u = new SpeechSynthesisUtterance('');
+      // Uterence inaudible NON VIDE (bug iOS : une utterance vide peut ne
+      // jamais finir et bloquer toute la file derrière elle).
+      const u = new SpeechSynthesisUtterance('.');
       u.volume = 0;
       speechSynthesis.speak(u);
       this.pickVoice();
+    } catch {
+      // silencieux : la voix est optionnelle
+    }
+  }
+
+  rewarm(): void {
+    if (!this.enabled || typeof speechSynthesis === 'undefined') return;
+    try {
+      // Purge la file, débloque une éventuelle mise en pause interne, puis
+      // relance la machine par une utterance inaudible non vide : c'est le
+      // seul remède connu au TTS muet d'iOS après un arrière-plan.
+      speechSynthesis.cancel();
+      speechSynthesis.resume();
+      const u = new SpeechSynthesisUtterance('.');
+      u.volume = 0;
+      speechSynthesis.speak(u);
     } catch {
       // silencieux : la voix est optionnelle
     }

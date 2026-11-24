@@ -13,6 +13,7 @@ function makeVoice() {
   let cancels = 0;
   const voice: VoiceService = {
     init: () => {},
+    rewarm: () => {},
     setLang: () => {},
     setEnabled: () => {},
     speak: (t: string) => said.push(t),
@@ -164,6 +165,7 @@ describe('SessionController', () => {
     const said2: string[] = [];
     const voice2: VoiceService = {
       init: () => {},
+      rewarm: () => {},
       setLang: () => {},
       setEnabled: () => {},
       speak: (t: string) => said2.push(t),

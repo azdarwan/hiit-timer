@@ -86,6 +86,7 @@ export default function App() {
     voiceRef.current.setVoiceName(settings.voiceName);
     voiceRef.current.setEnabled(settings.voice);
     controllerRef.current?.updateSettings(settings);
+    bgAudioRef.current.setVoiceEnabled(settings.voice);
   }, [settings]);
 
   useEffect(() => {
@@ -108,7 +109,15 @@ export default function App() {
   useEffect(() => {
     const onVisibility = () => {
       const visible = document.visibilityState === 'visible';
-      if (visible) wakeLockRef.current.reacquire();
+      if (visible) {
+        wakeLockRef.current.reacquire();
+        // Bug iOS du 24/11 : après un arrière-plan interrompu par une
+        // autre source audio (Spotify…), la file TTS reste muette, pause
+        // et play ne réveillent rien. On purge et relance la synthèse au
+        // retour, la consolidation d'annonces (SessionController) dit
+        // alors où on en est.
+        if (controllerRef.current) voiceRef.current.rewarm();
+      }
       bgAudioRef.current.onAppVisibility(visible);
     };
     document.addEventListener('visibilitychange', onVisibility);
@@ -152,7 +161,9 @@ export default function App() {
     voiceRef.current.setEnabled(settings.voice);
     // Session audio « playback » : garde l'appli vivante en arrière-plan
     // (doit partir d'un geste utilisateur, cf. backgroundAudio.ts).
-    bgAudioRef.current.start(strings(settings.lang).session.inProgressTitle);
+    // Priorité voix (choix du 24/11) : pendant une séance avec voix, la
+    // session est re-réclamée derrière une musique externe.
+    bgAudioRef.current.start(strings(settings.lang).session.inProgressTitle, { voice: settings.voice });
   }, [settings]);
 
   const recordSession = useCallback(

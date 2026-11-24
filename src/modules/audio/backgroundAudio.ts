@@ -8,21 +8,28 @@
  * Start (déblocage iOS : lecture non muted lancée d'un clic, l'élément
  * reste ensuite rejouable sans geste).
  *
- * Cohabitation avec la musique (bugs du 23/11) :
+ * Cohabitation avec la musique (bugs du 23/11, arbitrage Wandrille du
+ * 24/11 : la voix a la priorité sur la musique pendant les séances) :
  * - Au PREMIER PLAN, la boucle est TOUJOURS en pause : revenir sur l'appli
- *   ne réveille jamais la session de lecture et ne coupe pas Spotify.
- *   L'appli vit naturellement au premier plan, la boucle ne sert à rien.
- * - En ARRIÈRE-PLAN pendant une séance, la boucle (re)part pour garder
- *   l'appli vivante (timer, bips et annonces vivent).
- * - Si une AUTRE source audio (Spotify…) a pris le relais, détecté par
- *   une pause de l'élément qu'on n'a pas provoquée (interruption OS), on
- *   ne re-réclame plus la session derrière elle : sa musique gagne, le
- *   timer reste exact (timestamps) et les annonces rattrapées au retour.
+ *   ne réveille jamais la session de lecture. Les annonces TTS prennent
+ *   seules une session exclusive à chaque utterance (iOS) : chaque annonce
+ *   coupe la musique, c'est le comportement choisi.
+ * - En ARRIÈRE-PLAN pendant une séance AVEC voix : la boucle (re)part et,
+ *   si une autre source audio (Spotify…) prend le relais, on re-réclame
+ *   la session peu après (claim retardé, un par interruption) : la voix
+ *   reste vivante, la musique externe est coupée. Pendant une séance, le
+ *   timer garde la priorité sur toute autre lecture.
+ * - En ARRIÈRE-PLAN pendant une séance SANS voix (réglage coupé) : au
+ *   contraire on ne re-réclame JAMAIS derrière elle : sa musique gagne,
+ *   le timer reste exact (timestamps) et la session audio ne sert à rien.
  * - Les bips Web Audio passent en session mixable
  *   (`navigator.audioSession.type = 'transient'`, Safari 16.4+) : ils
  *   cohabitent avec la musique au lieu de la couper.
  * - Limite iOS irréductible : le TTS (`speechSynthesis`) prend une
- *   session audio exclusive, il ne peut PAS mixer avec la musique.
+ *   session audio exclusive, il ne peut PAS mixer avec la musique (il la
+ *   coupe, cf. choix du 24/11). Et après un arrière-plan interrompu, la
+ *   file TTS d'iOS reste parfois muette : VoiceService.rewarm() la
+ *   réveille au retour au premier plan (App.tsx).
  */
 
 const WAV_SAMPLE_RATE = 8000;
@@ -93,6 +100,14 @@ export interface BackgroundAudioDeps {
   setAudioSessionType?: (type: string) => void;
   /** mediaSession : absent hors navigateurs récents. */
   setMediaSession?: (state: 'playing' | 'paused' | 'none', title: string) => void;
+  /** Délai de re-claim derrière une interruption externe (test : 1 ms). */
+  reclaimDelayMs?: number;
+}
+
+/** Options du démarrage de séance. */
+export interface BackgroundAudioStartOptions {
+  /** Voix active : l'appli re-réclame la session derrière une musique externe (priorité voix, choix du 24/11). */
+  voice?: boolean;
 }
 
 const createHtmlAudioLoop = (): LoopAudio | null => {
@@ -133,10 +148,19 @@ export class BackgroundAudio {
   private audio: LoopAudio | null = null;
   /** Séance en cours (entre Start et fin/Sortie). */
   private active = false;
-  /** Une autre source audio (Spotify…) a interrompu notre lecture : on ne re-réclame plus. */
+  /** Une autre source audio (Spotify…) a interrompu notre lecture. */
   private externalAudio = false;
   /** Pause volontaire (les pauses OS, elles, marquent externalAudio). */
   private selfPause = false;
+  /**
+   * Priorité voix (choix du 24/11) : si vrai, une interruption externe en
+   * arrière-plan déclenche un re-claim de la session (la musique externe
+   * est coupée, les annonces vivent). Si faux, la musique externe gagne.
+   */
+  private voiceEnabled = true;
+  /** Re-claim retardé derrière une interruption (un seul par interruption). */
+  private reclaimTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly reclaimDelayMs: number;
   private title = '';
   private readonly isVisible: () => boolean;
   private readonly setAudioSessionType: (type: string) => void;
@@ -145,6 +169,7 @@ export class BackgroundAudio {
 
   constructor(deps: BackgroundAudioDeps = {}) {
     this.createAudio = deps.createAudio ?? createHtmlAudioLoop;
+    this.reclaimDelayMs = deps.reclaimDelayMs ?? 1000;
     this.isVisible =
       deps.isVisible ??
       (() => (typeof document !== 'undefined' ? document.visibilityState !== 'hidden' : true));
@@ -181,7 +206,7 @@ export class BackgroundAudio {
    * lecture de déblocage part du geste Start, puis rend immédiatement la
    * session si l'appli est au premier plan.
    */
-  start(title: string): void {
+  start(title: string, options: BackgroundAudioStartOptions = {}): void {
     const audio = this.audio ?? this.createAudio();
     if (!audio) return;
     if (!this.audio) {
@@ -189,13 +214,18 @@ export class BackgroundAudio {
       audio.setAttribute('webkit-playsinline', 'true');
       audio.volume = 0.01; // pas « muted » : une lecture muette ne compte pas
       audio.addPauseListener(() => {
-        if (!this.selfPause) this.externalAudio = true;
+        if (!this.selfPause) {
+          this.externalAudio = true;
+          this.scheduleReclaim();
+        }
       });
       this.audio = audio;
     }
     this.active = true;
     this.externalAudio = false;
+    this.voiceEnabled = options.voice ?? true;
     this.title = title;
+    this.clearReclaimTimer();
     // Déblocage iOS : rejouable sans geste ensuite. L'élément « béni » est
     // immédiatement remis en pause si l'appli est visible.
     this.selfPause = false;
@@ -211,9 +241,19 @@ export class BackgroundAudio {
       });
   }
 
+  /**
+   * Priorité voix changée en cours de séance (réglage). Sans voix, on ne
+   * vole jamais la session à une musique externe.
+   */
+  setVoiceEnabled(voice: boolean): void {
+    this.voiceEnabled = voice;
+    if (!voice) this.clearReclaimTimer();
+  }
+
   /** Termine l'état de séance (fin de séance ou sortie). */
   stop(): void {
     this.active = false;
+    this.clearReclaimTimer();
     this.suspendLoop();
     this.setMediaSession('none', '');
   }
@@ -222,10 +262,12 @@ export class BackgroundAudio {
   onAppVisibility(visible: boolean): void {
     if (!this.active || !this.audio) return;
     if (visible) {
+      this.clearReclaimTimer();
       this.suspendLoop();
     } else {
-      if (this.externalAudio) return; // une autre source joue : on ne lui vole pas la session
-      this.claimBackground();
+      // Priorité voix : on reprend la session même derrière une musique
+      // externe (elle sera coupée). Sans voix : la musique externe gagne.
+      if (this.voiceEnabled || !this.externalAudio) this.claimBackground(this.voiceEnabled);
     }
   }
 
@@ -245,14 +287,42 @@ export class BackgroundAudio {
     this.setAudioSessionType('transient');
   }
 
-  /** Arrière-plan : (re)prise de la session de lecture pour rester vivant. */
-  private claimBackground(): void {
+  /**
+   * Arrière-plan : (re)prise de la session de lecture pour rester vivant.
+   * `force` : on prend la session même si une autre source l'a volée
+   * (priorité voix du 24/11 : sa musique est coupée).
+   */
+  private claimBackground(force = false): void {
     if (!this.audio || !this.audio.paused) return;
+    if (!force && this.externalAudio) return;
     this.setAudioSessionType('auto');
     this.selfPause = false;
     void this.audio.play().catch(() => {
-      // claim refusé (politique de lecture) : rattrapage au retour
+      // claim refusé (politique de lecture) : le prochain événement de
+      // pause externe ou de passage en arrière-plan re-essaiera
     });
     this.setMediaSession('playing', this.title);
+  }
+
+  /**
+   * Re-claim retardé derrière une interruption externe : un seul essai par
+   * interruption (chaque « play » de l'utilisateur dans l'app musicale
+   * déclenche le suivant). Sans voix ou au premier plan : jamais.
+   */
+  private scheduleReclaim(): void {
+    if (!this.active || !this.voiceEnabled || this.isVisible()) return;
+    this.clearReclaimTimer();
+    this.reclaimTimer = setTimeout(() => {
+      this.reclaimTimer = null;
+      if (!this.active || !this.voiceEnabled) return;
+      this.claimBackground(true);
+    }, this.reclaimDelayMs);
+  }
+
+  private clearReclaimTimer(): void {
+    if (this.reclaimTimer !== null) {
+      clearTimeout(this.reclaimTimer);
+      this.reclaimTimer = null;
+    }
   }
 }

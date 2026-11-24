@@ -2,6 +2,7 @@ import type { Settings, WorkoutConfig } from '../types';
 import { CONFIG_LIMITS, COUNTDOWN_LIMITS, WEIGHT_LIMITS } from '../types';
 import { formatDuration, totalDuration } from '../modules/workout/plan';
 import { DEFAULT_EXERCISES, editableDefsFor, exercisesFor, moveExercise } from '../modules/workout/exercises';
+import { commitNumber, typedNumber } from '../modules/workout/numericInput';
 import type { Favorite } from '../modules/storage/favorites';
 import type { SavedSession } from '../modules/storage/session';
 import { listSessions, clearHistory, toCSV, downloadCSV } from '../modules/storage/history';
@@ -57,7 +58,53 @@ export default function ConfigScreen(props: Props) {
     const { min } = CONFIG_LIMITS[key as keyof typeof CONFIG_LIMITS];
     if (!Number.isFinite(value) || value < min) value = min;
     onConfigChange({ ...config, [key]: value });
+    purgeDraft(String(key));
   };
+
+  /**
+   * Saisie clavier des champs numériques (bug du 24/11 : les bornes
+   * s'appliquaient à chaque frappe, « 9 » pour 92 kg partait
+   * immédiatement en 30, puis « 309 » en 300). Une frappe hors bornes
+   * reste en BROUILLON affichée telle quelle, seule une valeur déjà
+   * valide s'applique en direct ; les bornes ne s'appliquent qu'à la
+   * sortie du champ (cf. numericInput.ts).
+   */
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+
+  const purgeDraft = (key: string) =>
+    setDrafts((d) => {
+      if (!(key in d)) return d;
+      const next = { ...d };
+      delete next[key];
+      return next;
+    });
+
+  /** Frappe : applique si déjà dans les bornes, sinon garde en brouillon tel quel. */
+  const typeNumber = (key: string, raw: string, min: number, max: number, apply: (n: number) => void) => {
+    const { value } = typedNumber(raw, min, max);
+    if (value !== null) {
+      apply(value);
+      purgeDraft(key);
+    } else {
+      setDrafts((d) => ({ ...d, [key]: raw }));
+    }
+  };
+
+  /** Sortie de champ : clamp dans les bornes ; champ vidé = repli sur la valeur courante. */
+  const blurNumber = (
+    key: string,
+    raw: string,
+    min: number,
+    max: number,
+    fallback: number,
+    apply: (n: number) => void,
+  ) => {
+    if (raw !== '') apply(commitNumber(raw, min, max, fallback));
+    purgeDraft(key);
+  };
+
+  /** Affichage d'un champ numérique : brouillon de frappe ou valeur courante. */
+  const shownNumber = (key: string, current: number) => (key in drafts ? drafts[key] : String(current));
 
   /** Met à jour la définition d'un exercice (nom ou comptage de reps), SANS tronquer la liste sauvegardée. */
   const setExercise = (index: number, patch: Partial<{ name: string; countReps: boolean }>) => {
@@ -113,6 +160,7 @@ export default function ConfigScreen(props: Props) {
       ...settings,
       countdownSec: Math.min(COUNTDOWN_LIMITS.max, Math.max(COUNTDOWN_LIMITS.min, value)),
     });
+    purgeDraft('countdown');
   };
 
   /** Poids utilisateur (kg) : unique donnée nécessaire aux calories (MET). */
@@ -122,6 +170,7 @@ export default function ConfigScreen(props: Props) {
       ...settings,
       weightKg: Math.min(WEIGHT_LIMITS.max, Math.max(WEIGHT_LIMITS.min, value)),
     });
+    purgeDraft('weight');
   };
 
   const saveFavorite = (name: string) => {
@@ -182,8 +231,13 @@ export default function ConfigScreen(props: Props) {
                   type="number"
                   inputMode="numeric"
                   min={min}
-                  value={value}
-                  onChange={(e) => setField(f.key, Number(e.target.value))}
+                  value={shownNumber(String(f.key), value)}
+                  onChange={(e) =>
+                    typeNumber(String(f.key), e.target.value, min, Infinity, (n) => setField(f.key, n))
+                  }
+                  onBlur={(e) =>
+                    blurNumber(String(f.key), e.currentTarget.value, min, Infinity, value, (n) => setField(f.key, n))
+                  }
                 />
                 <button className="step-btn" onClick={() => setField(f.key, value + step)} aria-label={`${c.plus} ${label}`}>
                   +
@@ -358,8 +412,13 @@ export default function ConfigScreen(props: Props) {
               inputMode="numeric"
               min={COUNTDOWN_LIMITS.min}
               max={COUNTDOWN_LIMITS.max}
-              value={settings.countdownSec}
-              onChange={(e) => setCountdown(Number(e.target.value))}
+              value={shownNumber('countdown', settings.countdownSec)}
+              onChange={(e) =>
+                typeNumber('countdown', e.target.value, COUNTDOWN_LIMITS.min, COUNTDOWN_LIMITS.max, (n) => setCountdown(n))
+              }
+              onBlur={(e) =>
+                blurNumber('countdown', e.currentTarget.value, COUNTDOWN_LIMITS.min, COUNTDOWN_LIMITS.max, settings.countdownSec, (n) => setCountdown(n))
+              }
             />
             <button className="step-btn" onClick={() => setCountdown(settings.countdownSec + COUNTDOWN_LIMITS.step)} aria-label={c.plusCountdown}>
               +
@@ -379,8 +438,13 @@ export default function ConfigScreen(props: Props) {
               inputMode="numeric"
               min={WEIGHT_LIMITS.min}
               max={WEIGHT_LIMITS.max}
-              value={settings.weightKg}
-              onChange={(e) => setWeight(Number(e.target.value))}
+              value={shownNumber('weight', settings.weightKg)}
+              onChange={(e) =>
+                typeNumber('weight', e.target.value, WEIGHT_LIMITS.min, WEIGHT_LIMITS.max, (n) => setWeight(n))
+              }
+              onBlur={(e) =>
+                blurNumber('weight', e.currentTarget.value, WEIGHT_LIMITS.min, WEIGHT_LIMITS.max, settings.weightKg, (n) => setWeight(n))
+              }
             />
             <button className="step-btn" onClick={() => setWeight(settings.weightKg + WEIGHT_LIMITS.step)} aria-label={c.plusWeight}>
               +

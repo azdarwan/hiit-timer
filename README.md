@@ -3,6 +3,7 @@
 Minuteur HIIT (High Intensity Interval Training) — PWA installable, **100 % hors ligne, gratuite, sans pub, sans tracker, sans compte**.
 
 - Travail / Repos / Rounds / Repos long / Préparation, entièrement configurables
+- **Saisie clavier sans clamp brutal** (poids, durées, décompte) : une frappe hors bornes (ex « 9 » pour 92 kg) reste en brouillon le temps de la saisie, seule une valeur valide s'applique en direct, les bornes ne s'appliquent qu'à la sortie du champ (testé, cf. `numericInput.test.ts`)
 - **Séance par défaut** (base du Scientific 7-Minute Workout, enrichie) : jumping jacks, chaise, pompes (reps), crunch, step-up, squat, tractions (reps), pont fessier, dips triceps, planche, montées de genoux, fentes, pompes avec rotation (reps), gainage latéral gauche, gainage latéral droit. L'ancien ordre par défaut est migré automatiquement au chargement ; une liste d'exercices personnalisée n'est jamais touchée ; un bouton « Réinitialiser la séance par défaut » remet exactement cette liste, quel que soit l'historique du navigateur
 - **Réordonnancement des exercices par glisser-déposer** : poignée dédiée à gauche de chaque ligne de l'écran config (pointer events, aucune dépendance), l'ordre de la liste = l'ordre en séance ; l'édition ne tronque plus la liste sauvegardée
 - **Exercices nommés + comptage des reps** (pompes, tractions…) saisis au **pavé numérique**, avec **écran de saisie pour ce qui manque avant le récapitulatif** (en général le dernier round), puis **récapitulatif complet corrigible**

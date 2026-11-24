@@ -22,6 +22,12 @@ export interface SessionControllerDeps {
   clock?: () => number;
   /** Rythme de pump du moteur, en ms (défaut 100). Tests avec horloge très accélérée uniquement. */
   tickMs?: number;
+  /**
+   * La voix doit-elle se taire ? (musique externe pendant que l'appli
+   * est cachée : le TTS la couperait à chaque annonce ; les bips
+   * mixables parlent à sa place, arbitrage du 24/11.)
+   */
+  isVoiceMuted?: () => boolean;
   onSnapshot?: (s: EngineSnapshot) => void;
   onFinish?: (realElapsedMs: number, virtualElapsedMs: number, reps: RepRecord[]) => void;
   onPaused?: () => void;
@@ -253,7 +259,9 @@ export class SessionController {
 
   private fire(cue: Cue): void {
     const a = cue.action;
-    if (a.say) this.deps.voice.speak(a.say);
+    // Voix muette (musique externe en arrière-plan) : le « say » saute,
+    // les bips et vibrations passent toujours (mixables par-dessus).
+    if (a.say && !this.deps.isVoiceMuted?.()) this.deps.voice.speak(a.say);
     if (a.beep === 'tick') this.deps.beeps.tick();
     else if (a.beep === 'transition') this.deps.beeps.transition();
     else if (a.beep === 'finish') this.deps.beeps.finish();

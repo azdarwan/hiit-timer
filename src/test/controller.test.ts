@@ -270,4 +270,28 @@ describe('SessionController', () => {
     expect(said).toContain('1');
     controller.terminate();
   });
+
+  it('voix muette (musique externe en arrière-plan) : le say saute, les bips partent toujours', async () => {
+    const { voice, said } = makeVoice();
+    const { beeps, played } = makeBeeps();
+    let virtual = 0;
+    // travail 30 s unique : moitié à 15 s, 3-2-1 à 27, 28, 29 s (tick + say)
+    const config: WorkoutConfig = { work: 30, rest: 5, exercises: 1, rounds: 1, longRest: 0, prepare: 0 };
+    const controller = new SessionController({
+      voice,
+      beeps,
+      settings,
+      wakeLock: null,
+      clock: () => virtual,
+      isVoiceMuted: () => true, // musique externe : bips mixables à la place de la voix
+    });
+    controller.start(config);
+    virtual = 28_999; // gel simulé : « Go ! », « Moitié », « 3 », « 2 » dues -> consolidation sur la plus récente
+    await new Promise((r) => setTimeout(r, 150));
+    virtual = 29_999; // écart faible : « 1 » part normalement
+    await new Promise((r) => setTimeout(r, 150));
+    expect(said).toEqual([]); // aucune annonce vocale : la musique n'est jamais coupée
+    expect(played.filter((b) => b === 'tick')).toHaveLength(2); // les ticks « 2 » et « 1 » restent audibles par-dessus
+    controller.terminate();
+  });
 });

@@ -86,7 +86,6 @@ export default function App() {
     voiceRef.current.setVoiceName(settings.voiceName);
     voiceRef.current.setEnabled(settings.voice);
     controllerRef.current?.updateSettings(settings);
-    bgAudioRef.current.setVoiceEnabled(settings.voice);
   }, [settings]);
 
   useEffect(() => {
@@ -141,6 +140,9 @@ export default function App() {
         settings,
         wakeLock: wakeLockRef.current,
         clock: simSpeed !== 1 ? makeSimClock(simSpeed) : undefined,
+        // Musique externe + appli cachée : voix muette, bips mixables à la
+        // place (arbitrage du 24/11, cf. backgroundAudio.ts).
+        isVoiceMuted: () => bgAudioRef.current.isVoiceMuted(),
         onSnapshot: (s) => {
           setSnapshot(s);
           const controller = controllerRef.current;
@@ -160,10 +162,9 @@ export default function App() {
     voiceRef.current.setVoiceName(settings.voiceName);
     voiceRef.current.setEnabled(settings.voice);
     // Session audio « playback » : garde l'appli vivante en arrière-plan
-    // (doit partir d'un geste utilisateur, cf. backgroundAudio.ts).
-    // Priorité voix (choix du 24/11) : pendant une séance avec voix, la
-    // session est re-réclamée derrière une musique externe.
-    bgAudioRef.current.start(strings(settings.lang).session.inProgressTitle, { voice: settings.voice });
+    // (doit partir d'un geste utilisateur, cf. backgroundAudio.ts). Si une
+    // musique externe prend le relais, elle gagne : bips seuls alors.
+    bgAudioRef.current.start(strings(settings.lang).session.inProgressTitle);
   }, [settings]);
 
   const recordSession = useCallback(
